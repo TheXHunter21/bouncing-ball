@@ -1,56 +1,41 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Battle Balls — config modal + morph revert + fantasma</title>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Battle Balls — turbo bordes + config velocidad</title>
 <style>
-  :root { color-scheme: light dark; }
-  body { margin: 0; font-family: system-ui, Segoe UI, Roboto, sans-serif; display: grid; place-items: center; min-height: 100dvh; gap: 12px; }
-  .wrap { display: grid; gap: 10px; width: min(900px, 96vw); }
-  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-  button { padding: 8px 14px; border: 0; border-radius: 12px; cursor: pointer; box-shadow: 0 2px 10px #0002; }
-  button:disabled { opacity: 0.6; cursor: not-allowed; }
-  .hud { font-weight: 600; display:flex; gap:12px; flex-wrap: wrap; align-items:center;}
-  .scoreboard { display:flex; gap:10px; flex-wrap: wrap; }
-  .badge { padding: 2px 8px; border-radius: 999px; font-weight: 700; box-shadow: 0 1px 4px #0002; background: transparent; }
-  canvas { width: 100%; aspect-ratio: 1 / 1; background: conic-gradient(from 180deg at 50% 50%, #fff0, #fff0); border-radius: 16px; box-shadow: inset 0 0 0 1px #0002; }
+  :root{color-scheme:light dark}
+  body{margin:0;font-family:system-ui,Segoe UI,Roboto,sans-serif;display:grid;place-items:center;min-height:100dvh;gap:12px}
+  .wrap{display:grid;gap:10px;width:min(900px,96vw)}
+  .controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+  button{padding:8px 14px;border:0;border-radius:12px;cursor:pointer;box-shadow:0 2px 10px #0002}
+  button:disabled{opacity:.6;cursor:not-allowed}
+  .hud{font-weight:600;display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .scoreboard{display:flex;gap:10px;flex-wrap:wrap}
+  .badge{padding:2px 8px;border-radius:999px;font-weight:700;box-shadow:0 1px 4px #0002;background:transparent}
+  canvas{width:100%;aspect-ratio:1/1;background:conic-gradient(from 180deg at 50% 50%,#fff0,#fff0);border-radius:16px;box-shadow:inset 0 0 0 1px #0002}
 
   /* LOG overlay */
-  .log-toggle { margin-left: auto; }
-  .log-overlay {
-    position: fixed; inset: 16px 16px auto auto;
-    width: min(420px, 95vw); height: 60vh;
-    background: rgba(20,20,20,.85); color: #fafafa;
-    border: 1px solid #ffffff20; border-radius: 12px;
-    box-shadow: 0 10px 30px #0008; z-index: 9999; display: none;
-    backdrop-filter: blur(6px);
-  }
-  .log-overlay header { display: flex; align-items: center; justify-content: space-between;
-    padding: 8px 10px; border-bottom: 1px solid #ffffff22; font-weight: 700; }
-  .log-overlay main { padding: 8px 10px; height: calc(60vh - 48px - 12px);
-    overflow: auto; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.35; }
-  .log-time { color: #9ad0ff; } .log-info { color: #d6f5d6; } .log-warn { color: #ffe59a; } .log-err{ color:#ffb3b3; }
+  .log-toggle{margin-left:auto}
+  .log-overlay{position:fixed;inset:16px 16px auto auto;width:min(420px,95vw);height:60vh;background:rgba(20,20,20,.85);color:#fafafa;border:1px solid #ffffff20;border-radius:12px;box-shadow:0 10px 30px #0008;z-index:9999;display:none;backdrop-filter:blur(6px)}
+  .log-overlay header{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid #ffffff22;font-weight:700}
+  .log-overlay main{padding:8px 10px;height:calc(60vh - 48px - 12px);overflow:auto;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.35}
+  .log-time{color:#9ad0ff}.log-info{color:#d6f5d6}.log-warn{color:#ffe59a}.log-err{color:#ffb3b3}
 
   /* CONFIG modal */
-  .modal { position: fixed; inset: 0; display: none; place-items: center; z-index: 10000; }
-  .modal.show { display: grid; }
-  .modal::before { content:""; position: absolute; inset:0; background:#0008; backdrop-filter: blur(4px); }
-  .modal > .card {
-    position: relative; width: min(760px, 96vw); max-height: 85vh; overflow: auto;
-    background: var(--bg, #1c1c1c); color: var(--fg, #fafafa);
-    border: 1px solid #ffffff22; border-radius: 14px; padding: 14px;
-    box-shadow: 0 20px 60px #000a;
-  }
-  .grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); }
-  .field { display: grid; gap: 6px; }
-  .field label { font-weight: 700; font-size: 13px; }
-  input[type="number"], input[type="range"] {
-    padding: 6px 8px; border-radius: 10px; border: 1px solid #8884; background: #ffffff08; color: inherit;
-  }
-  .pill-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); margin-top: 6px; }
-  .row { display:flex; gap:8px; align-items:center; }
-  .sep { height:1px; background:#ffffff22; margin:10px 0; }
+  .modal{position:fixed;inset:0;display:none;place-items:center;z-index:10000}
+  .modal.show{display:grid}
+  .modal::before{content:"";position:absolute;inset:0;background:#0008;backdrop-filter:blur(4px)}
+  .modal>.card{position:relative;width:min(760px,96vw);max-height:85vh;overflow:auto;background:#1c1c1c;color:#fafafa;border:1px solid #ffffff22;border-radius:14px;padding:14px;box-shadow:0 20px 60px #000a}
+  .grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+  .field{display:grid;gap:6px}
+  .field label{font-weight:700;font-size:13px}
+  input[type="number"],input[type="range"]{padding:6px 8px;border-radius:10px;border:1px solid #8884;background:#ffffff08;color:inherit}
+  .rows{display:grid;gap:8px} /* lista vertical */
+  .row{display:flex;gap:8px;align-items:center}
+  .row > span{width:210px}
+  .sep{height:1px;background:#ffffff22;margin:10px 0}
 </style>
 </head>
 <body>
@@ -87,39 +72,47 @@
   <div id="configModal" class="modal" aria-hidden="true">
     <div class="card">
       <h3 style="margin:0 0 8px 0;">Configuración</h3>
+
       <div class="grid">
         <div class="field">
           <label>Pelotitas (pre-game)</label>
-          <input id="ballCount" type="number" value="3" min="1" max="50" step="1" />
+          <input id="ballCount" type="number" value="3" min="1" max="50" step="1"/>
         </div>
+
         <div class="field">
           <label>Píldoras máx.</label>
-          <input id="maxPills" type="number" value="20" min="0" step="1" />
+          <input id="maxPills" type="number" value="20" min="0" step="1"/>
         </div>
+
         <div class="field">
           <label>Frecuencia spawn</label>
           <div class="row">
-            <input id="spawnRate" type="range" min="25" max="300" value="250" step="5" />
+            <input id="spawnRate" type="range" min="25" max="300" value="250" step="5"/>
             <span id="spawnRateVal">250%</span>
           </div>
         </div>
+
         <div class="field">
-          <label>Rebote crece</label>
-          <button id="toggleEdgeGrow">OFF</button>
+          <label>Velocidad base (x)</label>
+          <div class="row">
+            <input id="speedMult" type="range" min="0.5" max="4" value="2.25" step="0.25"/>
+            <span id="speedMultVal">x2.25</span>
+          </div>
         </div>
       </div>
 
       <div class="sep"></div>
       <div class="field">
         <label>Pesos de aparición por píldora (0..∞, paso 5)</label>
-        <div class="pill-grid">
-          <div class="row"><span style="width:110px;">Azul (+nivel)</span><input id="wBlue" type="number" step="5" min="0" value="150"></div>
-          <div class="row"><span style="width:110px;">Roja (−nivel)</span><input id="wRed" type="number" step="5" min="0" value="20"></div>
-          <div class="row"><span style="width:110px;">Verde 2×</span><input id="wGreenFast" type="number" step="5" min="0" value="15"></div>
-          <div class="row"><span style="width:110px;">Verde 0.5×</span><input id="wGreenSlow" type="number" step="5" min="0" value="15"></div>
-          <div class="row"><span style="width:110px;">Celeste (escudo)</span><input id="wCyan" type="number" step="5" min="0" value="25"></div>
-          <div class="row"><span style="width:110px;">Amarilla (morph)</span><input id="wYellow" type="number" step="5" min="0" value="5"></div>
-          <div class="row"><span style="width:110px;">Blanca (fantasma)</span><input id="wWhite" type="number" step="5" min="0" value="10"></div>
+        <div class="rows">
+          <div class="row"><span>Azul (+nivel)</span><input id="wBlue"       type="number" step="5" min="0" value="150"></div>
+          <div class="row"><span>Roja (−nivel)</span><input id="wRed"        type="number" step="5" min="0" value="20"></div>
+          <div class="row"><span>Verde claro (2×)</span><input id="wGreenFast" type="number" step="5" min="0" value="15"></div>
+          <div class="row"><span>Verde oscuro (0.5×)</span><input id="wGreenSlow" type="number" step="5" min="0" value="15"></div>
+          <div class="row"><span>Celeste (escudo)</span><input id="wCyan"    type="number" step="5" min="0" value="25"></div>
+          <div class="row"><span>Amarilla (frenesí/morph)</span><input id="wYellow" type="number" step="5" min="0" value="5"></div>
+          <div class="row"><span>Blanca (fantasma)</span><input id="wWhite"  type="number" step="5" min="0" value="10"></div>
+          <div class="row"><span>Turquesa (bordes +)</span><input id="wTurq" type="number" step="5" min="0" value="10"></div>
         </div>
       </div>
 
@@ -135,30 +128,30 @@
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
 
-  // Buttons
+  // Buttons / HUD
   const openConfigBtn = document.getElementById('openConfig');
   const startBtn = document.getElementById('start');
   const pauseBtn = document.getElementById('pause');
   const resetBtn = document.getElementById('reset');
-
-  // HUD/LOG
   const timeEl = document.getElementById('time');
   const scoreboardEl = document.getElementById('scoreboard');
+
+  // LOG
   const logOverlay = document.getElementById('logOverlay');
   const logBody = document.getElementById('logBody');
   const toggleLogBtn = document.getElementById('toggleLog');
   const closeLogBtn = document.getElementById('closeLog');
   const clearLogBtn = document.getElementById('clearLog');
 
-  // CONFIG modal refs
+  // CONFIG elements
   const configModal = document.getElementById('configModal');
   const closeConfigBtn = document.getElementById('closeConfig');
   const ballCountInput = document.getElementById('ballCount');
   const maxPillsInput = document.getElementById('maxPills');
   const spawnRateInput = document.getElementById('spawnRate');
   const spawnRateVal = document.getElementById('spawnRateVal');
-  const toggleEdgeGrowBtn = document.getElementById('toggleEdgeGrow');
-
+  const speedMultInput = document.getElementById('speedMult');
+  const speedMultVal = document.getElementById('speedMultVal');
   const wBlue = document.getElementById('wBlue');
   const wRed = document.getElementById('wRed');
   const wGreenFast = document.getElementById('wGreenFast');
@@ -166,14 +159,19 @@
   const wCyan = document.getElementById('wCyan');
   const wYellow = document.getElementById('wYellow');
   const wWhite = document.getElementById('wWhite');
+  const wTurq = document.getElementById('wTurq');
 
   // State
   let state = 'idle'; // 'idle' | 'running' | 'ended'
   let paused = false, pauseStartMs = 0, pauseAccumMs = 0;
 
   // World
-  let R, baseSpeed, defaultSpeed; // defaultSpeed = baseSpeed * 2.25
+  let R, baseSpeed, defaultSpeed;
+  let speedMult = 2.25; // configurable (x)
   let startTime = 0, elapsed = 0, rafId = null;
+
+  // Time helper: "game now" (congelado en pausa para render)
+  const gameNowMs = () => paused ? pauseStartMs : performance.now();
 
   // Pills
   const pills = [];
@@ -182,9 +180,9 @@
   let spawnRatePct = 250;
   let maxPills = 20;
 
-  // Spawn weights (configurables)
+  // Spawn weights (config)
   const spawnWeights = {
-    blue: 150, red: 20, greenFast: 15, greenSlow: 15, cyanShield: 25, yellowMorph: 5, whiteGhost: 10
+    blue:150, red:20, greenFast:15, greenSlow:15, cyanShield:25, yellowMorph:5, whiteGhost:10, turquoiseEdge:10
   };
 
   // Balls
@@ -192,175 +190,172 @@
   const LEVEL_START = 5;
   let ballCount = 3;
   const SPAWN_IMMUNITY_MS = 700;
-  let edgeGrowEnabled = false; // default OFF
 
-  // Ghost (white) effect
+  // Durations
   const GHOST_DURATION_MS = 5000;
-
-  // Morph (yellow) effect
-  let morphType = null; // type string
-  let morphUntil = 0;
+  const EDGEGROW_DURATION_MS = 5000;
   const MORPH_DURATION_MS = 8000;
+
+  // Morph state
+  let morphType = null; // 'blue'|'red'|'greenFast'|'greenSlow'|'cyanShield'|'whiteGhost'|'turquoiseEdge'
+  let morphUntil = 0;
 
   // Logs
   const logs = [];
   const LOG_MAX = 800;
-  function fmtTime(sec) { return sec.toFixed(2).padStart(5, '0'); }
-  function addLog(msg, level = 'info') {
-    const t = state === 'idle' ? 0 : Math.max(0, (performance.now() - startTime - pauseAccumMs) / 1000);
-    logs.push({ t, msg, level });
-    if (logs.length > LOG_MAX) logs.shift();
-    if (logOverlay.style.display === 'block') renderLogs();
+  function fmtTime(sec){return sec.toFixed(2).padStart(5,'0')}
+  function addLog(msg, level='info'){
+    const t = state==='idle' ? 0 : Math.max(0,(performance.now()-startTime-pauseAccumMs)/1000);
+    logs.push({t,msg,level}); if(logs.length>LOG_MAX) logs.shift();
+    if(logOverlay.style.display==='block') renderLogs();
   }
-  function renderLogs() {
-    logBody.innerHTML = logs.map(l => {
-      const cls = l.level === 'warn' ? 'log-warn' : l.level === 'err' ? 'log-err' : 'log-info';
+  function renderLogs(){
+    logBody.innerHTML = logs.map(l=>{
+      const cls = l.level==='warn'?'log-warn':l.level==='err'?'log-err':'log-info';
       return `<div class="log-line"><span class="log-time">[${fmtTime(l.t)}]</span> <span class="${cls}">${l.msg}</span></div>`;
     }).join('');
     logBody.scrollTop = logBody.scrollHeight;
   }
-  function toggleLogs() {
-    const show = logOverlay.style.display !== 'block';
-    logOverlay.style.display = show ? 'block' : 'none';
-    logOverlay.setAttribute('aria-hidden', show ? 'false' : 'true');
-    if (show) renderLogs();
+  function toggleLogs(){
+    const show = logOverlay.style.display!=='block';
+    logOverlay.style.display = show?'block':'none';
+    logOverlay.setAttribute('aria-hidden', show?'false':'true');
+    if(show) renderLogs();
   }
 
   // Utils
-  function randomRange(a, b) { return a + Math.random() * (b - a); }
-  function randomAngle() { return Math.random() * Math.PI * 2; }
-  function scheduleNextSpawn(now = performance.now(), delayMs) {
-    if (typeof delayMs === 'number') { nextSpawnAt = now + delayMs; return; }
-    const factor = 100 / spawnRatePct; // 200% => mitad; 50% => doble
-    const base = randomRange(1500, 4000);
-    nextSpawnAt = now + base * factor;
+  function randomRange(a,b){return a+Math.random()*(b-a)}
+  function randomAngle(){return Math.random()*Math.PI*2}
+  function scheduleNextSpawn(now=performance.now(), delayMs){
+    if(typeof delayMs==='number'){ nextSpawnAt = now+delayMs; return; }
+    const factor = 100/spawnRatePct; // 200% => mitad
+    const base = randomRange(1500,4000);
+    nextSpawnAt = now + base*factor;
   }
-  function randomNonBlueRedColor() {
-    while (true) {
-      const h = Math.floor(Math.random() * 360);
-      const redZone = (h <= 15 || h >= 345);
-      const blueZone = (h >= 200 && h <= 260);
-      if (!redZone && !blueZone) {
-        const s = 70 + Math.random() * 20;
-        const l = 55 + Math.random() * 15;
-        return `hsl(${h} ${s}% ${l}%)`;
-      }
+  function randomNonBlueRedColor(){
+    while(true){
+      const h = Math.floor(Math.random()*360);
+      const redZone=(h<=15||h>=345), blueZone=(h>=200&&h<=260);
+      if(!redZone && !blueZone){ const s=70+Math.random()*20, l=55+Math.random()*15; return `hsl(${h} ${s}% ${l}%)`; }
     }
   }
 
+  // Pill names/colors
+  const PILL_NAMES = {
+    blue:'azul', red:'roja', greenFast:'verde claro (2×)', greenSlow:'verde oscuro (0.5×)',
+    cyanShield:'celeste (escudo)', yellowMorph:'amarilla (frenesí)', whiteGhost:'blanca (fantasma)', turquoiseEdge:'turquesa (bordes +)'
+  };
+  function pillColor(type){
+    return type==='blue'?'#1877F2':
+           type==='red'?'#E53935':
+           type==='greenFast'?'#7CFC00':
+           type==='greenSlow'?'#2E7D32':
+           type==='cyanShield'?'#33CFFF':
+           type==='yellowMorph'?'#FFD400':
+           type==='whiteGhost'?'#FFFFFF':
+           type==='turquoiseEdge'?'#00D1B2':'#888';
+  }
+  const MORPH_CHOICES = ['blue','red','greenFast','greenSlow','cyanShield','whiteGhost','turquoiseEdge'];
+
   // Growth table
-  function pctForLevel(level) {
-    if (level <= 0) return 0;
-    if (level <= 10) return 25;
-    if (level <= 15) return 20;
-    if (level <= 20) return 15;
-    if (level <= 25) return 10;
+  function pctForLevel(level){
+    if(level<=0) return 0;
+    if(level<=10) return 25;
+    if(level<=15) return 20;
+    if(level<=20) return 15;
+    if(level<=25) return 10;
     return 5;
   }
-
-  function applyGrowthStep(ball, source) {
-    const prev = ball.level;
-    ball.level++;
+  function applyGrowthStep(ball, source){
+    const prev = ball.level; ball.level++;
     const pct = pctForLevel(ball.level);
-    ball.r = Math.min(R, ball.r * (1 + pct/100));
+    ball.r = Math.min(R, ball.r*(1+pct/100));
     addLog(`${ball.id} ${source}: nivel ${prev}→${ball.level} (+${pct}%)`);
     updateScoreboard();
   }
-  function applyShrinkStep(ball, source) {
-    const prev = ball.level;
-    const pct = pctForLevel(ball.level);
-    ball.r = Math.max(2, ball.r / (1 + pct/100));
-    ball.level--;
+  function applyShrinkStep(ball, source){
+    const prev = ball.level; const pct=pctForLevel(ball.level);
+    ball.r = Math.max(2, ball.r/(1+pct/100)); ball.level--;
     addLog(`${ball.id} ${source}: nivel ${prev}→${ball.level} (−${pct}%)`);
     updateScoreboard();
-    if (ball.level <= 0) { ball.alive = false; addLog(`${ball.id} ha muerto (nivel 0).`, 'err'); }
+    if(ball.level<=0){ ball.alive=false; addLog(`${ball.id} ha muerto (nivel 0).`,'err'); }
   }
   function tryShrink(ball, source) {
-    if (ball.shield) { ball.shield = false; addLog(`${ball.id}: ESCUDO bloqueó ${source}`, 'warn'); updateScoreboard(); return; }
-    if (isGhost(ball, performance.now())) { addLog(`${ball.id}: fantasma ignora ${source}`, 'info'); return; }
-    applyShrinkStep(ball, source);
+  // Escudo: consume y cancela el decrecimiento
+  if (ball.shield) {
+    ball.shield = false;
+    addLog(`${ball.id}: ESCUDO bloqueó ${source}`, 'warn');
+    updateScoreboard();
+    return;
   }
+  // Fantasma: ignora decrecimientos (roja y colisión)
+  const now = performance.now();
+  if (isGhost(ball, now)) {
+    addLog(`${ball.id}: fantasma ignora ${source}`, 'info');
+    return;
+  }
+  // Aplicar decrecimiento normal
+  applyShrinkStep(ball, source);
+}
 
-  // Speed effects
-  function effectiveSpeed(ball, nowMs) {
-    if (ball.speedEffect !== 'none' && nowMs >= ball.speedEffectUntil) {
-      const prev = ball.speedEffect; ball.speedEffect = 'none'; addLog(`${ball.id}: Fin efecto de velocidad (${prev})`, 'warn');
-    }
-    if (ball.speedEffect === 'boost') return defaultSpeed * 2;
-    if (ball.speedEffect === 'slow') return defaultSpeed * 0.5;
-    return defaultSpeed;
-  }
-  function setSpeedEffect(ball, type, nowMs) {
-    ball.speedEffect = type; ball.speedEffectUntil = nowMs + 5000;
-    addLog(`${ball.id}: Efecto velocidad → ${type === 'boost' ? '2×' : '0.5×'} (5s)`, 'warn');
-  }
-  function applySpeedToVelocity(ball, targetSpeed) {
-    const mag = Math.hypot(ball.vel.x, ball.vel.y);
-    if (mag > 0) { const nx = ball.vel.x / mag, ny = ball.vel.y / mag; ball.vel.x = nx * targetSpeed; ball.vel.y = ny * targetSpeed; }
-  }
-
-  // Ghost helpers
-  function isGhost(ball, nowMs) {
-    if (!ball.ghostUntil) return false;
-    if (nowMs >= ball.ghostUntil) { ball.ghostUntil = 0; addLog(`${ball.id}: Fin FANTASMA`, 'warn'); return false; }
+  // Effects
+  function isGhost(ball, nowMs){
+    if(!ball.ghostUntil) return false;
+    if(nowMs>=ball.ghostUntil){ ball.ghostUntil=0; addLog(`${ball.id}: Fin FANTASMA`,'warn'); return false; }
     return true;
   }
-  function setGhost(ball, nowMs) {
-    ball.ghostUntil = nowMs + GHOST_DURATION_MS;
-    addLog(`${ball.id}: FANTASMA activado (5s)`, 'warn');
+  function setGhost(ball, nowMs){ ball.ghostUntil = nowMs + GHOST_DURATION_MS; addLog(`${ball.id}: FANTASMA (5s)`,'warn'); }
+
+  function edgeGrowActive(ball, nowMs){
+    return ball.edgeGrowUntil && nowMs < ball.edgeGrowUntil;
+  }
+  function enableEdgeGrow(ball, nowMs){
+    ball.edgeGrowUntil = nowMs + EDGEGROW_DURATION_MS;
+    addLog(`${ball.id}: Bordes ⇒ CRECEN (5s)`,'warn');
   }
 
-  // Morph helpers
-  const PILL_NAMES = {
-    blue: 'azul', red: 'roja', greenFast: 'verde claro (2×)', greenSlow: 'verde oscuro (0.5×)',
-    cyanShield: 'celeste (escudo)', yellowMorph: 'amarilla (morph)', whiteGhost: 'blanca (fantasma)'
-  };
-  const MORPH_CHOICES = ['blue','red','greenFast','greenSlow','cyanShield','whiteGhost'];
-  function startMorph(nowMs) {
-    const pick = MORPH_CHOICES[Math.floor(Math.random() * MORPH_CHOICES.length)];
-    morphType = pick; morphUntil = nowMs + MORPH_DURATION_MS;
-    // Guardar original y convertir existentes
-    for (const p of pills) {
-      if (p.originalType == null) p.originalType = p.type;
-      p.type = pick; p.name = PILL_NAMES[pick];
+  function effectiveSpeed(ball, nowMs){
+    if(ball.speedEffect!=='none' && nowMs>=ball.speedEffectUntil){
+      const prev=ball.speedEffect; ball.speedEffect='none'; addLog(`${ball.id}: Fin velocidad (${prev})`,'warn');
     }
-    addLog(`AMARILLA: todas las píldoras se vuelven ${PILL_NAMES[pick]} por 8s`, 'warn');
+    if(ball.speedEffect==='boost') return defaultSpeed*2;
+    if(ball.speedEffect==='slow')  return defaultSpeed*0.5;
+    return defaultSpeed;
   }
-  function maybeEndMorph(nowMs) {
-    if (morphType && nowMs >= morphUntil) {
-      // Revertir las que tengan originalType
-      for (const p of pills) {
-        if (p.originalType) { p.type = p.originalType; p.name = PILL_NAMES[p.originalType]; delete p.originalType; }
-      }
-      addLog(`Fin efecto AMARILLO (morph)`, 'warn');
-      morphType = null;
-    }
+  function setSpeedEffect(ball,type,nowMs){
+    ball.speedEffect=type; ball.speedEffectUntil=nowMs+5000;
+    addLog(`${ball.id}: Velocidad → ${type==='boost'?'2×':'0.5×'} (5s)`,'warn');
+  }
+  function applySpeedToVelocity(ball, targetSpeed){
+    const mag=Math.hypot(ball.vel.x,ball.vel.y);
+    if(mag>0){ const nx=ball.vel.x/mag, ny=ball.vel.y/mag; ball.vel.x=nx*targetSpeed; ball.vel.y=ny*targetSpeed; }
   }
 
   // World
-  function resize() {
-    const dpr = Math.max(1, window.devicePixelRatio || 1);
-    const cssSize = Math.min(window.innerWidth * 0.96, 900);
-    canvas.width = Math.floor(cssSize * dpr);
-    canvas.height = Math.floor(cssSize * dpr);
-    ctx.setTransform(1,0,0,1,0,0); ctx.scale(dpr, dpr); ctx.translate(cssSize/2, cssSize/2);
-    R = (cssSize/2) - 10;
-    baseSpeed = R * 0.45;
-    defaultSpeed = baseSpeed * 2.25; // velocidad por defecto (1.5× anterior)
-    addLog('Canvas redimensionado', 'info');
+  function resize(){
+    const dpr = Math.max(1, window.devicePixelRatio||1);
+    const cssSize = Math.min(window.innerWidth*0.96,900);
+    canvas.width=Math.floor(cssSize*dpr); canvas.height=Math.floor(cssSize*dpr);
+    ctx.setTransform(1,0,0,1,0,0); ctx.scale(dpr,dpr); ctx.translate(cssSize/2, cssSize/2);
+    R=(cssSize/2)-10; baseSpeed=R*0.45; defaultSpeed=baseSpeed*speedMult;
+    addLog('Canvas redimensionado','info');
   }
 
-  function clampInputs() {
-    let n = Number(ballCountInput.value); if (!Number.isFinite(n)) n = 3;
-    ballCount = Math.max(1, Math.min(50, Math.floor(n)));
-    ballCountInput.value = String(ballCount);
+  function clampInputs(){
+    let n=Number(ballCountInput.value); if(!Number.isFinite(n)) n=3;
+    ballCount=Math.max(1,Math.min(50,Math.floor(n))); ballCountInput.value=String(ballCount);
 
-    let mp = Number(maxPillsInput.value); if (!Number.isFinite(mp)) mp = 20;
-    maxPills = Math.max(0, Math.floor(mp)); maxPillsInput.value = String(maxPills);
+    let mp=Number(maxPillsInput.value); if(!Number.isFinite(mp)) mp=20;
+    maxPills=Math.max(0,Math.floor(mp)); maxPillsInput.value=String(maxPills);
 
-    let sr = Number(spawnRateInput.value); if (!Number.isFinite(sr)) sr = 250;
-    spawnRatePct = Math.max(25, Math.min(300, Math.floor(sr)));
-    spawnRateInput.value = String(spawnRatePct); spawnRateVal.textContent = `${spawnRatePct}%`;
+    let sr=Number(spawnRateInput.value); if(!Number.isFinite(sr)) sr=250;
+    spawnRatePct=Math.max(25,Math.min(300,Math.floor(sr))); spawnRateInput.value=String(spawnRatePct);
+    spawnRateVal.textContent=`${spawnRatePct}%`;
+
+    let sm=Number(speedMultInput.value); if(!Number.isFinite(sm)) sm=2.25;
+    speedMult = Math.max(0.5, Math.min(4, sm)); speedMultInput.value=String(speedMult);
+    speedMultVal.textContent = `x${speedMult.toFixed(2)}`;
+    defaultSpeed = baseSpeed * speedMult;
 
     // Pesos
     spawnWeights.blue = Math.max(0, Math.floor(Number(wBlue.value)||0));
@@ -370,318 +365,316 @@
     spawnWeights.cyanShield = Math.max(0, Math.floor(Number(wCyan.value)||0));
     spawnWeights.yellowMorph = Math.max(0, Math.floor(Number(wYellow.value)||0));
     spawnWeights.whiteGhost = Math.max(0, Math.floor(Number(wWhite.value)||0));
+    spawnWeights.turquoiseEdge = Math.max(0, Math.floor(Number(wTurq.value)||0));
   }
 
-  function updateScoreboard() {
-    scoreboardEl.innerHTML = balls.filter(b => b.alive).map(b => {
+  function updateScoreboard(){
+    const now = gameNowMs();
+    scoreboardEl.innerHTML = balls.filter(b=>b.alive).map(b=>{
       const shield = b.shield ? ` <span style="color:#33cfff">🛡</span>` : '';
-      const ghost  = b.ghostUntil && performance.now() < b.ghostUntil ? ` <span style="color:#fff">👻</span>` : '';
-      return `<span class="badge" style="color:${b.color}; border:1px solid ${b.color}">${b.id}: Nivel ${b.level}${shield}${ghost}</span>`;
+      const ghost  = (b.ghostUntil && now < b.ghostUntil) ? ` <span style="color:#fff">👻</span>` : '';
+      const edge   = (b.edgeGrowUntil && now < b.edgeGrowUntil) ? ` <span style="color:#00D1B2">✨</span>` : '';
+      return `<span class="badge" style="color:${b.color};border:1px solid ${b.color}">${b.id}: Nivel ${b.level}${shield}${ghost}${edge}</span>`;
     }).join('');
   }
 
-  function init() {
-    paused = false; pauseAccumMs = 0; morphType = null; morphUntil = 0;
-    logs.length = 0; resize(); clampInputs();
+  function init(){
+    paused=false; pauseAccumMs=0; morphType=null; morphUntil=0;
+    logs.length=0; resize(); clampInputs();
 
-    // Balls (radio inicial 25) con separación
-    balls.length = 0; const R_INIT = 25;
-    for (let i = 0; i < ballCount; i++) {
-      const id = `P${i+1}`, color = randomNonBlueRedColor();
+    // Balls (radio inicial 25) separados
+    balls.length=0; const R_INIT=25;
+    for(let i=0;i<ballCount;i++){
+      const id=`P${i+1}`, color=randomNonBlueRedColor();
       let pos, tries=0;
-      do {
-        const a = randomAngle(); const rr = 30 + Math.random()*60;
-        pos = { x: Math.cos(a) * rr, y: Math.sin(a) * rr }; tries++;
-      } while (tries < 100 && balls.some(b => Math.hypot(b.pos.x - pos.x, b.pos.y - pos.y) < (b.r + R_INIT + 8)));
+      do{
+        const a=randomAngle(), rr=30+Math.random()*60;
+        pos={x:Math.cos(a)*rr, y:Math.sin(a)*rr}; tries++;
+      }while(tries<100 && balls.some(b=>Math.hypot(b.pos.x-pos.x,b.pos.y-pos.y)<(b.r+R_INIT+8)));
       balls.push({
-        id, color, pos, vel:{x:0,y:0}, r:R_INIT, level:LEVEL_START, alive:true,
-        speedEffect:'none', speedEffectUntil:0, noCollideUntil:0, shield:false, ghostUntil:0
+        id,color,pos,vel:{x:0,y:0},r:R_INIT,level:LEVEL_START,alive:true,
+        speedEffect:'none',speedEffectUntil:0,noCollideUntil:0,shield:false,ghostUntil:0,edgeGrowUntil:0
       });
-      addLog(`${id} listo (nivel ${LEVEL_START})`, 'info');
+      addLog(`${id} listo (nivel ${LEVEL_START})`,'info');
     }
 
-    pills.length = 0; nextSpawnAt = null;
-    timeEl.textContent = '0.00'; state = 'idle';
-    startBtn.disabled = false; pauseBtn.disabled = true; pauseBtn.textContent = 'Pausar';
-    ballCountInput.disabled = false; // en modal
-    toggleEdgeGrowBtn.textContent = edgeGrowEnabled ? 'ON' : 'OFF';
-    updateScoreboard(); addLog('Abre CONFIG y pulsa INICIAR', 'info'); draw();
+    pills.length=0; nextSpawnAt=null;
+    timeEl.textContent='0.00'; state='idle';
+    startBtn.disabled=false; pauseBtn.disabled=true; pauseBtn.textContent='Pausar';
+    updateScoreboard(); addLog('Abre CONFIG y pulsa INICIAR','info'); draw();
   }
 
-  function startGame() {
-    startBtn.disabled = true; pauseBtn.disabled = false; ballCountInput.disabled = true;
-    const now = performance.now();
-    for (const b of balls) {
-      const a = randomAngle(), v0 = effectiveSpeed(b, now);
-      b.vel.x = Math.cos(a) * v0; b.vel.y = Math.sin(a) * v0; b.noCollideUntil = now + SPAWN_IMMUNITY_MS;
+  function startGame(){
+    startBtn.disabled=true; pauseBtn.disabled=false; ballCountInput.disabled=true; speedMultInput.disabled=true;
+    const now=performance.now();
+    for(const b of balls){
+      const a=randomAngle(), v0=effectiveSpeed(b, now);
+      b.vel.x=Math.cos(a)*v0; b.vel.y=Math.sin(a)*v0; b.noCollideUntil=now+SPAWN_IMMUNITY_MS;
     }
-    state = 'running'; startTime = performance.now(); addLog('Juego iniciado', 'info');
+    state='running'; startTime=performance.now(); addLog('Juego iniciado','info');
     scheduleNextSpawn(startTime); loop(startTime);
   }
 
-  function loop(prev) {
-    rafId = requestAnimationFrame(now => {
-      let dt = (now - prev) / 1000; if (dt > 0.05) dt = 0.05;
-      update(dt, now); draw(); if (state !== 'ended') loop(now);
+  function loop(prev){
+    rafId = requestAnimationFrame(now=>{
+      let dt=(now-prev)/1000; if(dt>0.05) dt=0.05;
+      update(dt, now); draw(); if(state!=='ended') loop(now);
     });
   }
 
-  function checkWinConditions() {
-    const alive = balls.filter(b => b.alive);
-    if (alive.length === 0) { state = 'ended'; startBtn.disabled = false; pauseBtn.disabled = true; addLog('Todas las pelotas murieron. Sin ganador.', 'warn'); return true; }
-    for (const b of alive) { if (b.r >= R - 0.5) { state='ended'; startBtn.disabled=false; pauseBtn.disabled=true; addLog(`${b.id} alcanzó 100% del tamaño. ¡Ganador!`, 'warn'); return true; } }
-    if (alive.length === 1) { state='ended'; startBtn.disabled=false; pauseBtn.disabled=true; addLog(`${alive[0].id} es el último con vida. ¡Ganador!`, 'warn'); return true; }
+  function checkWinConditions(){
+    const alive=balls.filter(b=>b.alive);
+    if(alive.length===0){ state='ended'; startBtn.disabled=false; pauseBtn.disabled=true; addLog('Todas las pelotas murieron. Sin ganador.','warn'); return true; }
+    for(const b of alive){ if(b.r>=R-0.5){ state='ended'; startBtn.disabled=false; pauseBtn.disabled=true; addLog(`${b.id} alcanzó 100% del tamaño. ¡Ganador!`,'warn'); return true; } }
+    if(alive.length===1){ state='ended'; startBtn.disabled=false; pauseBtn.disabled=true; addLog(`${alive[0].id} es el último con vida. ¡Ganador!`,'warn'); return true; }
     return false;
   }
 
-  function update(dt, now) {
-    if (state === 'running' && !paused) { elapsed = (now - startTime - pauseAccumMs) / 1000; timeEl.textContent = elapsed.toFixed(2); }
-    if (state !== 'running' || paused) return;
+  function update(dt, now){
+    if(state==='running' && !paused){
+      elapsed=(now-startTime-pauseAccumMs)/1000; timeEl.textContent=elapsed.toFixed(2);
+    }
+    if(state!=='running' || paused) return;
 
-    maybeEndMorph(now);
+    // morph expiry + revert pills to original
+    if(morphType && now>=morphUntil){
+      for(const p of pills){ if(p.originalType){ p.type=p.originalType; p.name=PILL_NAMES[p.originalType]; delete p.originalType; } }
+      addLog('Fin efecto AMARILLO (frenesí)','warn'); morphType=null;
+    }
 
-    // Spawn
-    if (nextSpawnAt !== null && now >= nextSpawnAt) {
-      if (pills.length < maxPills) { spawnRandomPill(now); scheduleNextSpawn(now); }
+    // spawn
+    if(nextSpawnAt!==null && now>=nextSpawnAt){
+      if(pills.length<maxPills){ spawnRandomPill(now); scheduleNextSpawn(now); }
       else { scheduleNextSpawn(now, 800); }
     }
 
-    // Balls
-    for (const b of balls) {
-      if (!b.alive) continue;
-      const targetSpeed = effectiveSpeed(b, now); applySpeedToVelocity(b, targetSpeed);
-      b.pos.x += b.vel.x * dt; b.pos.y += b.vel.y * dt;
+    // balls
+    for(const b of balls){
+      if(!b.alive) continue;
+      const targetSpeed=effectiveSpeed(b, now); applySpeedToVelocity(b, targetSpeed);
+      b.pos.x+=b.vel.x*dt; b.pos.y+=b.vel.y*dt;
 
-      // Borde
-      let dist = Math.hypot(b.pos.x, b.pos.y);
-      let nx = dist === 0 ? 1 : b.pos.x / dist, ny = dist === 0 ? 0 : b.pos.y / dist;
-      const limit = R - b.r, EPS = 0.001;
-      const touching = dist >= (limit - EPS), movingOutward = (b.vel.x * nx + b.vel.y * ny) > 0;
+      // borde
+      let dist=Math.hypot(b.pos.x,b.pos.y);
+      let nx=dist===0?1:b.pos.x/dist, ny=dist===0?0:b.pos.y/dist;
+      const limit=R-b.r, EPS=0.001;
+      const touching=dist>=(limit-EPS), movingOutward=(b.vel.x*nx + b.vel.y*ny) > 0;
 
-      if (touching && movingOutward) {
-        b.pos.x = nx * limit; b.pos.y = ny * limit;
-        if (edgeGrowEnabled) { applyGrowthStep(b, 'Rebote'); if (checkWinConditions()) return; }
+      if(touching && movingOutward){
+        b.pos.x=nx*limit; b.pos.y=ny*limit;
+
+        if(edgeGrowActive(b, now)){ applyGrowthStep(b,'Rebote'); if(checkWinConditions()) return; }
+
         // nueva dirección hacia adentro
-        let vx, vy; do { const a = randomAngle(); vx = Math.cos(a) * targetSpeed; vy = Math.sin(a) * targetSpeed; } while ((vx * nx + vy * ny) >= 0);
-        b.vel.x = vx; b.vel.y = vy;
-        const newLimit = R - b.r, inset = Math.max(1, targetSpeed * dt), t = Math.max(0, newLimit - inset);
-        b.pos.x = nx * t; b.pos.y = ny * t;
+        let vx,vy; do{ const a=randomAngle(); vx=Math.cos(a)*targetSpeed; vy=Math.sin(a)*targetSpeed; } while((vx*nx + vy*ny) >= 0);
+        b.vel.x=vx; b.vel.y=vy;
+
+        // empujón dentro
+        const newLimit=R-b.r, inset=Math.max(1,targetSpeed*dt), t=Math.max(0,newLimit-inset);
+        b.pos.x=nx*t; b.pos.y=ny*t;
       }
     }
 
-    // Colisiones entre pelotas (ignorar si alguna está fantasma)
-    for (let i = 0; i < balls.length; i++) {
-      const A = balls[i]; if (!A.alive) continue;
-      for (let j = i+1; j < balls.length; j++) {
-        const B = balls[j]; if (!B.alive) continue;
-        if (now < A.noCollideUntil || now < B.noCollideUntil) continue;
-        if (isGhost(A, now) || isGhost(B, now)) continue;
+    // colisiones entre pelotas (ignora fantasma)
+    for(let i=0;i<balls.length;i++){
+      const A=balls[i]; if(!A.alive) continue;
+      for(let j=i+1;j<balls.length;j++){
+        const B=balls[j]; if(!B.alive) continue;
+        if(now<A.noCollideUntil || now<B.noCollideUntil) continue;
+        if(isGhost(A, now) || isGhost(B, now)) continue;
 
-        const dx = B.pos.x - A.pos.x, dy = B.pos.y - A.pos.y;
-        const d = Math.hypot(dx, dy), minDist = A.r + B.r;
-        if (d > 0 && d <= minDist) {
-          const nx = dx / d, ny = dy / d, overlap = minDist - d + 0.5;
-          A.pos.x -= nx * overlap/2; A.pos.y -= ny * overlap/2;
-          B.pos.x += nx * overlap/2; B.pos.y += ny * overlap/2;
-          const vaDot = A.vel.x*nx + A.vel.y*ny, vbDot = B.vel.x*nx + B.vel.y*ny;
-          A.vel.x -= 2*vaDot*nx; A.vel.y -= 2*vaDot*ny;
-          B.vel.x -= 2*vbDot*nx; B.vel.y -= 2*vbDot*ny;
+        const dx=B.pos.x-A.pos.x, dy=B.pos.y-A.pos.y; const d=Math.hypot(dx,dy), minDist=A.r+B.r;
+        if(d>0 && d<=minDist){
+          const nx=dx/d, ny=dy/d, overlap=minDist-d+0.5;
+          A.pos.x-=nx*overlap/2; A.pos.y-=ny*overlap/2;
+          B.pos.x+=nx*overlap/2; B.pos.y+=ny*overlap/2;
+          const va=A.vel.x*nx + A.vel.y*ny, vb=B.vel.x*nx + B.vel.y*ny;
+          A.vel.x-=2*va*nx; A.vel.y-=2*va*ny; B.vel.x-=2*vb*nx; B.vel.y-=2*vb*ny;
 
-          tryShrink(A, `colisión con ${B.id}`); tryShrink(B, `colisión con ${A.id}`);
-          if (checkWinConditions()) return;
+          // decrecen (escudo/ghost pueden bloquear)
+          if(!isGhost(A, now)) tryShrink(A, `colisión con ${B.id}`);
+          if(!isGhost(B, now)) tryShrink(B, `colisión con ${A.id}`);
+          if(checkWinConditions()) return;
         }
       }
     }
 
-    // Colisión con píldoras (rombos; usamos radio)
-    for (let pi = pills.length - 1; pi >= 0; pi--) {
-      const p = pills[pi]; let consumed = false;
-      for (const b of balls) {
-        if (!b.alive) continue;
-        const d = Math.hypot(b.pos.x - p.x, b.pos.y - p.y);
-        if (d <= b.r + PILL_RADIUS) {
-          // fantasma ignora roja
-          if (p.type === 'red' && isGhost(b, now)) continue;
-
-          if (p.type === 'blue') { applyGrowthStep(b, 'Píldora azul'); if (checkWinConditions()) return; }
-          else if (p.type === 'red') { tryShrink(b, 'Píldora roja'); if (checkWinConditions()) return; }
-          else if (p.type === 'greenFast') { setSpeedEffect(b, 'boost', now); }
-          else if (p.type === 'greenSlow') { setSpeedEffect(b, 'slow', now); }
-          else if (p.type === 'cyanShield') {
-            if (b.shield) addLog(`${b.id}: ya tenía escudo (no acumulable).`, 'warn');
-            else { b.shield = true; addLog(`${b.id}: obtuvo ESCUDO (1 uso).`, 'info'); updateScoreboard(); }
-          }
-          else if (p.type === 'whiteGhost') { setGhost(b, now); updateScoreboard(); }
-          else if (p.type === 'yellowMorph') { startMorph(now); }
+    // colisión con píldoras
+    for(let pi=pills.length-1; pi>=0; pi--){
+      const p=pills[pi]; let consumed=false;
+      for(const b of balls){
+        if(!b.alive) continue;
+        const d=Math.hypot(b.pos.x-p.x, b.pos.y-p.y);
+        if(d<=b.r+PILL_RADIUS){
+          if(p.type==='red'){ if(isGhost(b, now)) continue; tryShrink(b,'Píldora roja'); if(checkWinConditions()) return; }
+          else if(p.type==='blue'){ applyGrowthStep(b,'Píldora azul'); if(checkWinConditions()) return; }
+          else if(p.type==='greenFast'){ setSpeedEffect(b,'boost',now); }
+          else if(p.type==='greenSlow'){ setSpeedEffect(b,'slow',now); }
+          else if(p.type==='cyanShield'){ if(b.shield) addLog(`${b.id}: ya tenía escudo.`,'warn'); else { b.shield=true; addLog(`${b.id}: ESCUDO (1 uso).`,'info'); updateScoreboard(); } }
+          else if(p.type==='whiteGhost'){ setGhost(b, now); updateScoreboard(); }
+          else if(p.type==='turquoiseEdge'){ enableEdgeGrow(b, now); updateScoreboard(); }
+          else if(p.type==='yellowMorph'){ startMorph(now); }
 
           addLog(`${b.id} consumió píldora ${p.name}.`);
-          consumed = true; break;
+          consumed=true; break;
         }
       }
-      if (consumed) pills.splice(pi, 1);
+      if(consumed) pills.splice(pi,1);
     }
   }
 
-  function draw() {
-    const cssSize = Math.min(window.innerWidth * 0.96, 900);
+  function draw(){
+    const cssSize = Math.min(window.innerWidth*0.96, 900);
     ctx.clearRect(-cssSize/2, -cssSize/2, cssSize, cssSize);
 
-    // Borde grande
-    ctx.lineWidth = 4; ctx.strokeStyle = '#222'; ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2); ctx.stroke();
+    // Borde grande — cambia color si MORPH activo
+    const borderCol = morphType ? pillColor(morphType) : '#222';
+    ctx.lineWidth=4; ctx.strokeStyle=borderCol; ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2); ctx.stroke();
 
     // Píldoras (rombos)
-    for (const p of pills) {
-      if (p.type === 'blue') ctx.fillStyle = '#1877F2';
-      else if (p.type === 'red') ctx.fillStyle = '#E53935';
-      else if (p.type === 'greenFast') ctx.fillStyle = '#7CFC00';
-      else if (p.type === 'greenSlow') ctx.fillStyle = '#2E7D32';
-      else if (p.type === 'cyanShield') ctx.fillStyle = '#33CFFF';
-      else if (p.type === 'yellowMorph') ctx.fillStyle = '#FFD400';
-      else if (p.type === 'whiteGhost') { ctx.fillStyle = '#FFFFFF'; }
-
+    for(const p of pills){
+      ctx.fillStyle = pillColor(p.type);
       ctx.beginPath();
       ctx.moveTo(p.x, p.y - PILL_RADIUS);
       ctx.lineTo(p.x + PILL_RADIUS, p.y);
       ctx.lineTo(p.x, p.y + PILL_RADIUS);
       ctx.lineTo(p.x - PILL_RADIUS, p.y);
-      ctx.closePath();
-      ctx.fill();
-
-      if (p.type === 'whiteGhost') { // dar contorno para que se vea
-        ctx.strokeStyle = '#bbbbbb'; ctx.lineWidth = 2; ctx.stroke();
-      }
-
-      // highlight sutil
-      ctx.fillStyle = '#fff8';
-      ctx.beginPath();
+      ctx.closePath(); ctx.fill();
+      if(p.type==='whiteGhost'){ ctx.strokeStyle='#bbb'; ctx.lineWidth=2; ctx.stroke(); }
+      // highlight
+      ctx.fillStyle='#fff8'; ctx.beginPath();
       ctx.moveTo(p.x, p.y - PILL_RADIUS/1.6);
       ctx.lineTo(p.x + PILL_RADIUS/1.6, p.y);
       ctx.lineTo(p.x, p.y - PILL_RADIUS/2.2);
-      ctx.closePath();
-      ctx.fill();
+      ctx.closePath(); ctx.fill();
     }
 
     // Pelotas
-    for (const b of balls) {
-      if (!b.alive) continue;
-      ctx.fillStyle = b.color; ctx.beginPath(); ctx.arc(b.pos.x, b.pos.y, b.r, 0, Math.PI*2); ctx.fill();
-      if (b.shield) { ctx.lineWidth = 3; ctx.strokeStyle = '#33CFFF'; ctx.beginPath(); ctx.arc(b.pos.x, b.pos.y, b.r+2, 0, Math.PI*2); ctx.stroke(); }
-      if (b.ghostUntil && performance.now() < b.ghostUntil) {
-        ctx.lineWidth = 2; ctx.setLineDash([6,4]); ctx.strokeStyle = '#ffffffcc';
-        ctx.beginPath(); ctx.arc(b.pos.x, b.pos.y, b.r+5, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+    const nowGame = gameNowMs();
+    for(const b of balls){
+      if(!b.alive) continue;
+      ctx.fillStyle=b.color; ctx.beginPath(); ctx.arc(b.pos.x,b.pos.y,b.r,0,Math.PI*2); ctx.fill();
+      if(b.shield){ ctx.lineWidth=3; ctx.strokeStyle='#33CFFF'; ctx.beginPath(); ctx.arc(b.pos.x,b.pos.y,b.r+2,0,Math.PI*2); ctx.stroke(); }
+      // Fantasma: aura que NO desaparece en pausa (usa nowGame)
+      if(b.ghostUntil && nowGame < b.ghostUntil){
+        ctx.lineWidth=2; ctx.setLineDash([6,4]); ctx.strokeStyle='#ffffffcc';
+        ctx.beginPath(); ctx.arc(b.pos.x,b.pos.y,b.r+5,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+      }
+      // Bordes+ activo: aro turquesa
+      if(b.edgeGrowUntil && nowGame < b.edgeGrowUntil){
+        ctx.lineWidth=2; ctx.strokeStyle='#00D1B2';
+        ctx.beginPath(); ctx.arc(b.pos.x,b.pos.y,b.r+8,0,Math.PI*2); ctx.stroke();
       }
     }
 
     // Mensajes
-    ctx.fillStyle = '#333'; ctx.font = '14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    if (state === 'idle') ctx.fillText('Abre CONFIG y haz click en INICIAR', 0, 0);
-    if (state === 'ended') ctx.fillText('Juego terminado', 0, 0);
-    if (paused && state === 'running') ctx.fillText('PAUSADO (P o Espacio)', 0, 0);
+    ctx.fillStyle='#333'; ctx.font='14px system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    if(state==='idle') ctx.fillText('Abre CONFIG y haz click en INICIAR',0,0);
+    if(state==='ended') ctx.fillText('Juego terminado',0,0);
+    if(paused && state==='running') ctx.fillText('PAUSADO (P o Espacio)',0,0);
   }
 
-  function spawnRandomPill(now=performance.now()) {
-    // Elegimos el "intended" (para poder revertir tras morph)
+  // Morph helpers
+  function startMorph(nowMs){
+    const pick = MORPH_CHOICES[Math.floor(Math.random()*MORPH_CHOICES.length)];
+    morphType=pick; morphUntil=nowMs+MORPH_DURATION_MS;
+    // guardar original y convertir existentes
+    for(const p of pills){ if(p.originalType==null) p.originalType=p.type; p.type=pick; p.name=PILL_NAMES[pick]; }
+    addLog(`AMARILLA: todas las píldoras → ${PILL_NAMES[pick]} (8s)`,'warn');
+  }
+
+  // Spawning
+  function spawnRandomPill(now=performance.now()){
     const entries = [
-      ['blue', spawnWeights.blue],
-      ['red', spawnWeights.red],
-      ['greenFast', spawnWeights.greenFast],
-      ['greenSlow', spawnWeights.greenSlow],
-      ['cyanShield', spawnWeights.cyanShield],
-      ['yellowMorph', spawnWeights.yellowMorph],
-      ['whiteGhost', spawnWeights.whiteGhost],
-    ].filter(([,w]) => w > 0);
+      ['blue',spawnWeights.blue],['red',spawnWeights.red],['greenFast',spawnWeights.greenFast],
+      ['greenSlow',spawnWeights.greenSlow],['cyanShield',spawnWeights.cyanShield],
+      ['yellowMorph',spawnWeights.yellowMorph],['whiteGhost',spawnWeights.whiteGhost],
+      ['turquoiseEdge',spawnWeights.turquoiseEdge]
+    ].filter(([,w])=>w>0);
 
-    // Si no hay pesos >0, no spawneamos
-    if (!entries.length) { scheduleNextSpawn(now, 1200); return; }
+    if(!entries.length){ scheduleNextSpawn(now,1200); return; }
 
-    const total = entries.reduce((s, [,w]) => s + w, 0);
-    let r = Math.random() * total, intended = entries[0][0];
-    for (const [type, w] of entries) { r -= w; if (r <= 0) { intended = type; break; } }
+    const total = entries.reduce((s,[,w])=>s+w,0);
+    let r=Math.random()*total, intended=entries[0][0];
+    for(const [type,w] of entries){ r-=w; if(r<=0){ intended=type; break; } }
 
-    // Tipo final (morph activo fuerza uno), pero guardamos originalType para revertir
-    let finalType = intended, storeOriginal = null;
-    if (morphType) { storeOriginal = intended; finalType = morphType; }
+    let finalType=intended, storeOriginal=null;
+    if(morphType){ storeOriginal=intended; finalType=morphType; }
 
-    const maxR = R - PILL_RADIUS - 4; let x=0, y=0;
-    for (let tries = 0; tries < 25; tries++) {
-      const a = randomAngle(); const rr = Math.sqrt(Math.random()) * maxR;
-      x = Math.cos(a) * rr; y = Math.sin(a) * rr;
-      let ok = true;
-      for (const b of balls) { if (!b.alive) continue; if (Math.hypot(x-b.pos.x,y-b.pos.y) <= b.r + PILL_RADIUS + 12) { ok=false; break; } }
-      if (ok) break;
+    const maxR = R - PILL_RADIUS - 4; let x=0,y=0;
+    for(let tries=0; tries<25; tries++){
+      const a=randomAngle(), rr=Math.sqrt(Math.random())*maxR;
+      x=Math.cos(a)*rr; y=Math.sin(a)*rr;
+      let ok=true; for(const b of balls){ if(!b.alive) continue; if(Math.hypot(x-b.pos.x,y-b.pos.y)<=b.r+PILL_RADIUS+12){ok=false;break;} }
+      if(ok) break;
     }
-    const p = { x, y, type: finalType, name: PILL_NAMES[finalType] };
-    if (storeOriginal) p.originalType = storeOriginal;
-    pills.push(p);
-    addLog(`Spawn píldora ${p.name} en (${x.toFixed(0)},${y.toFixed(0)})`, 'info');
+    const p={x,y,type:finalType,name:PILL_NAMES[finalType]}; if(storeOriginal) p.originalType=storeOriginal;
+    pills.push(p); addLog(`Spawn píldora ${p.name} en (${x.toFixed(0)},${y.toFixed(0)})`,'info');
   }
 
   // Pause
-  function togglePause() {
-    if (state !== 'running') return;
-    paused = !paused;
-    if (paused) { pauseStartMs = performance.now(); pauseBtn.textContent = 'Reanudar'; addLog('Pausa', 'warn'); }
-    else {
-      const delta = performance.now() - pauseStartMs; pauseAccumMs += delta; pauseStartMs = 0;
-      pauseBtn.textContent = 'Pausar';
-      if (nextSpawnAt !== null) nextSpawnAt += delta;
-      for (const b of balls) {
-        if (b.speedEffect !== 'none') b.speedEffectUntil += delta;
-        if (b.noCollideUntil > performance.now()) b.noCollideUntil += delta;
-        if (b.ghostUntil && b.ghostUntil > performance.now()) b.ghostUntil += delta;
+  function togglePause(){
+    if(state!=='running') return;
+    paused=!paused;
+    if(paused){
+      pauseStartMs=performance.now(); pauseBtn.textContent='Reanudar'; addLog('Pausa','warn');
+    }else{
+      const delta=performance.now()-pauseStartMs; pauseAccumMs+=delta; pauseStartMs=0;
+      pauseBtn.textContent='Pausar';
+      if(nextSpawnAt!==null) nextSpawnAt+=delta;
+      for(const b of balls){
+        if(b.speedEffect!=='none') b.speedEffectUntil+=delta;
+        if(b.noCollideUntil>performance.now()) b.noCollideUntil+=delta;
+        if(b.ghostUntil && b.ghostUntil>performance.now()) b.ghostUntil+=delta;      // fantasma respeta pausa
+        if(b.edgeGrowUntil && b.edgeGrowUntil>performance.now()) b.edgeGrowUntil+=delta; // bordes+ respeta pausa
       }
-      if (morphType) morphUntil += delta;
-      addLog('Reanudar', 'warn');
+      if(morphType) morphUntil+=delta; // frenesí respeta pausa
+      addLog('Reanudar','warn');
     }
   }
 
-  // CONFIG modal logic
-  function openConfig() {
-    // sync UI con estado
-    wBlue.value = spawnWeights.blue; wRed.value = spawnWeights.red;
-    wGreenFast.value = spawnWeights.greenFast; wGreenSlow.value = spawnWeights.greenSlow;
-    wCyan.value = spawnWeights.cyanShield; wYellow.value = spawnWeights.yellowMorph; wWhite.value = spawnWeights.whiteGhost;
-    spawnRateInput.value = spawnRatePct; spawnRateVal.textContent = `${spawnRatePct}%`;
-    maxPillsInput.value = maxPills; ballCountInput.value = ballCount;
-    toggleEdgeGrowBtn.textContent = edgeGrowEnabled ? 'ON' : 'OFF';
+  // CONFIG modal
+  function openConfig(){
+    // sync UI
+    wBlue.value=spawnWeights.blue; wRed.value=spawnWeights.red;
+    wGreenFast.value=spawnWeights.greenFast; wGreenSlow.value=spawnWeights.greenSlow;
+    wCyan.value=spawnWeights.cyanShield; wYellow.value=spawnWeights.yellowMorph;
+    wWhite.value=spawnWeights.whiteGhost; wTurq.value=spawnWeights.turquoiseEdge;
+    spawnRateInput.value=spawnRatePct; spawnRateVal.textContent=`${spawnRatePct}%`;
+    maxPillsInput.value=maxPills; ballCountInput.value=ballCount;
+    speedMultInput.value=speedMult; speedMultVal.textContent=`x${speedMult.toFixed(2)}`;
     configModal.classList.add('show'); configModal.setAttribute('aria-hidden','false');
   }
-  function closeConfig() { configModal.classList.remove('show'); configModal.setAttribute('aria-hidden','true'); }
+  function closeConfig(){ configModal.classList.remove('show'); configModal.setAttribute('aria-hidden','true'); }
 
   // Events
   openConfigBtn.addEventListener('click', openConfig);
-  closeConfigBtn.addEventListener('click', () => { clampInputs(); closeConfig(); addLog('CONFIG aplicada', 'info'); });
-  spawnRateInput.addEventListener('input', () => { clampInputs(); });
-  maxPillsInput.addEventListener('change', () => { clampInputs(); addLog(`Límite píldoras → ${maxPills}`, 'info'); });
-  [wBlue,wRed,wGreenFast,wGreenSlow,wCyan,wYellow,wWhite].forEach(inp => {
-    inp.addEventListener('change', () => { clampInputs(); addLog('Pesos de aparición actualizados', 'info'); });
-  });
-  ballCountInput.addEventListener('change', () => { if (state==='idle') clampInputs(); else ballCountInput.value = ballCount; });
-  toggleEdgeGrowBtn.addEventListener('click', () => {
-    edgeGrowEnabled = !edgeGrowEnabled; toggleEdgeGrowBtn.textContent = edgeGrowEnabled ? 'ON' : 'OFF';
-    addLog(`Crecimiento por rebote en borde: ${edgeGrowEnabled ? 'ON' : 'OFF'}`, 'info');
-  });
+  closeConfigBtn.addEventListener('click', ()=>{ clampInputs(); closeConfig(); addLog('CONFIG aplicada','info'); });
 
-  startBtn.addEventListener('click', () => { if (state === 'idle') { closeConfig(); startGame(); } });
-  resetBtn.addEventListener('click', () => { cancelAnimationFrame(rafId); init(); });
+  spawnRateInput.addEventListener('input', ()=>{ clampInputs(); });
+  speedMultInput.addEventListener('input', ()=>{ if(state==='idle'){ clampInputs(); } else { speedMultInput.value=speedMult; } });
+  maxPillsInput.addEventListener('change', ()=>{ clampInputs(); addLog(`Límite píldoras → ${maxPills}`,'info'); });
+  [wBlue,wRed,wGreenFast,wGreenSlow,wCyan,wYellow,wWhite,wTurq].forEach(inp=>{
+    inp.addEventListener('change', ()=>{ clampInputs(); addLog('Pesos de aparición actualizados','info'); });
+  });
+  ballCountInput.addEventListener('change', ()=>{ if(state==='idle') clampInputs(); else ballCountInput.value=ballCount; });
+
+  startBtn.addEventListener('click', ()=>{ if(state==='idle'){ closeConfig(); startGame(); }});
+  resetBtn.addEventListener('click', ()=>{ cancelAnimationFrame(rafId); ballCountInput.disabled=false; speedMultInput.disabled=false; init(); });
   pauseBtn.addEventListener('click', togglePause);
 
-  window.addEventListener('resize', () => { init(); });
+  window.addEventListener('resize', ()=>{ init(); });
 
-  // Logs UI (usa la renderLogs() ya declarada arriba)
-clearLogBtn.addEventListener('click', () => { 
-  logs.length = 0; 
-  renderLogs(); 
-});
-toggleLogBtn.addEventListener('click', toggleLogs);
-closeLogBtn.addEventListener('click', toggleLogs);
-
+  // Logs UI
+  clearLogBtn.addEventListener('click', ()=>{ logs.length=0; renderLogs(); });
+  toggleLogBtn.addEventListener('click', toggleLogs);
+  closeLogBtn.addEventListener('click', toggleLogs);
 
   // Hotkeys: P o Espacio para pausa, ESC para cerrar CONFIG
-  window.addEventListener('keydown', (e) => {
-    if (e.key === 'p' || e.key === 'P' || e.code === 'Space' || e.key === ' ') { e.preventDefault(); togglePause(); }
-    if (e.key === 'Escape' && configModal.classList.contains('show')) { closeConfig(); }
+  window.addEventListener('keydown', (e)=>{
+    if(e.key==='p'||e.key==='P'||e.code==='Space'||e.key===' '){ e.preventDefault(); togglePause(); }
+    if(e.key==='Escape' && configModal.classList.contains('show')){ closeConfig(); }
   });
 
   // Boot
