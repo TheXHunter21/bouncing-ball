@@ -3,24 +3,27 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Bola + Píldoras + Pausa</title>
+<title>Battle Balls — niveles coherentes + inmunidad spawn</title>
 <style>
   :root { color-scheme: light dark; }
   body { margin: 0; font-family: system-ui, Segoe UI, Roboto, sans-serif; display: grid; place-items: center; min-height: 100dvh; gap: 12px; }
-  .wrap { display: grid; gap: 10px; width: min(720px, 95vw); }
+  .wrap { display: grid; gap: 10px; width: min(900px, 96vw); }
   .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
   label { display: inline-flex; align-items: center; gap: 6px; }
-  input[type="number"] { padding: 6px 8px; border-radius: 10px; border: 1px solid #8884; width: 100px; }
+  input[type="number"], input[type="range"] { padding: 6px 8px; border-radius: 10px; border: 1px solid #8884; }
+  input[type="range"] { width: 180px; }
   button { padding: 8px 14px; border: 0; border-radius: 12px; cursor: pointer; box-shadow: 0 2px 10px #0002; }
   button:disabled { opacity: 0.6; cursor: not-allowed; }
-  .hud { font-weight: 600; }
+  .hud { font-weight: 600; display:flex; gap:12px; flex-wrap: wrap; align-items:center;}
+  .scoreboard { display:flex; gap:10px; flex-wrap: wrap; }
+  .badge { padding: 2px 8px; border-radius: 999px; font-weight: 700; box-shadow: 0 1px 4px #0002; }
   canvas { width: 100%; aspect-ratio: 1 / 1; background: conic-gradient(from 180deg at 50% 50%, #fff0, #fff0); border-radius: 16px; box-shadow: inset 0 0 0 1px #0002; }
 
   /* Overlay de logs */
   .log-toggle { margin-left: auto; }
   .log-overlay {
     position: fixed; inset: 16px 16px auto auto;
-    width: min(360px, 90vw); height: 55vh;
+    width: min(420px, 95vw); height: 60vh;
     background: rgba(20,20,20,.85); color: #fafafa;
     border: 1px solid #ffffff20; border-radius: 12px;
     box-shadow: 0 10px 30px #0008; z-index: 9999; display: none;
@@ -36,7 +39,7 @@
     padding: 6px 10px; box-shadow: none; border: 1px solid #ffffff18;
   }
   .log-overlay main {
-    padding: 8px 10px; height: calc(55vh - 48px - 12px);
+    padding: 8px 10px; height: calc(60vh - 48px - 12px);
     overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 12px; line-height: 1.35;
   }
@@ -50,20 +53,28 @@
 <body>
   <div class="wrap">
     <div class="controls">
+      <label>Pelotitas:
+        <input id="ballCount" type="number" value="3" min="1" max="50" step="1" />
+      </label>
+
       <label>Píldoras máx.:
-        <input id="maxPills" type="number" value="3" min="0" step="1" />
+        <input id="maxPills" type="number" value="5" min="0" step="1" />
+      </label>
+
+      <label>Frecuencia spawn:
+        <input id="spawnRate" type="range" min="25" max="300" value="100" step="5" />
+        <span id="spawnRateVal">100%</span>
       </label>
 
       <button id="start">INICIAR</button>
       <button id="pause" disabled>Pausar</button>
       <button id="reset">Reiniciar</button>
       <button id="toggleLog" class="log-toggle">Logs</button>
+    </div>
 
-      <div class="hud">
-        Tiempo: <span id="time">0.00</span>s ·
-        Crecimientos: <span id="sizeSteps">1</span> ·
-        Fase: <span id="phasePct">25%</span>
-      </div>
+    <div class="hud">
+      Tiempo: <span id="time">0.00</span>s
+      <div id="scoreboard" class="scoreboard"></div>
     </div>
 
     <canvas id="game"></canvas>
@@ -86,13 +97,18 @@
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
 
-  const maxPillsInput = document.getElementById('maxPills');
+  // UI
+  const ballCountInput = document.getElementById('ballCount');
+  const maxPillsInput   = document.getElementById('maxPills');
+  const spawnRateInput  = document.getElementById('spawnRate');
+  const spawnRateVal    = document.getElementById('spawnRateVal');
+
   const startBtn = document.getElementById('start');
   const pauseBtn = document.getElementById('pause');
   const resetBtn = document.getElementById('reset');
+
   const timeEl = document.getElementById('time');
-  const sizeStepsEl = document.getElementById('sizeSteps');
-  const phasePctEl = document.getElementById('phasePct');
+  const scoreboardEl = document.getElementById('scoreboard');
 
   const logOverlay = document.getElementById('logOverlay');
   const logBody = document.getElementById('logBody');
@@ -100,33 +116,30 @@
   const closeLogBtn = document.getElementById('closeLog');
   const clearLogBtn = document.getElementById('clearLog');
 
-  // Estado
+  // Estado global
   let state = 'idle'; // 'idle' | 'running' | 'ended'
-  let paused = false;
-  let pauseStartMs = 0;
-  let pauseAccumMs = 0;
+  let paused = false, pauseStartMs = 0, pauseAccumMs = 0;
 
-  // Mundo y físicas
-  let R, r, pos, vel;
-  let baseSpeed, defaultSpeed;   // baseSpeed depende del canvas; default = baseSpeed * 1.5
-  let sizeSteps = 1, startTime = 0, elapsed = 0, rafId = null;
+  // Mundo & físicas
+  let R, baseSpeed, defaultSpeed; // defaultSpeed = baseSpeed * 1.5
+  let startTime = 0, elapsed = 0, rafId = null;
 
-  // Crecimiento por fases: 25% (x5) -> 20% (x5) -> 15% (x5) -> 10% (x5) -> 5% (∞)
-  let growthPct, growthUsesLeft;
-
-  // Píldoras (azul/roja y verdes de velocidad)
+  // Píldoras
   const pills = [];
   const PILL_RADIUS = 8;
   let nextSpawnAt = null;
-  let maxPills = 3;
+  let maxPills = 5;
+  let spawnRatePct = 100; // 100% = base (1.5–4s). >100 = más rápido
 
-  // Efecto de velocidad (boost o slow) por 5 s (no corre en pausa)
-  let speedEffect = 'none'; // 'none' | 'boost' | 'slow'
-  let speedEffectUntil = 0; // timestamp ms
+  // Pelotas
+  const balls = [];
+  const LEVEL_START = 5; // nivel inicial
+  let ballCount = 3;
+  const SPAWN_IMMUNITY_MS = 700; // inmunidad al iniciar
 
   // Logs
   const logs = [];
-  const LOG_MAX = 200;
+  const LOG_MAX = 500;
   function fmtTime(sec) { return sec.toFixed(2).padStart(5, '0'); }
   function addLog(msg, level = 'info') {
     const t = state === 'idle' ? 0 : Math.max(0, (performance.now() - startTime - pauseAccumMs) / 1000);
@@ -149,14 +162,16 @@
     if (show) renderLogs();
   }
 
-  // Helpers
+  // Utils
   function randomRange(a, b) { return a + Math.random() * (b - a); }
-
+  function randomAngle() { return Math.random() * Math.PI * 2; }
   function scheduleNextSpawn(now = performance.now(), delayMs) {
     if (typeof delayMs === 'number') { nextSpawnAt = now + delayMs; return; }
-    nextSpawnAt = now + randomRange(1500, 4000);
+    // base: 1500–4000ms, escalar por frecuencia (%): 200% => mitad de tiempo, 50% => doble
+    const factor = 100 / spawnRatePct;
+    const base = randomRange(1500, 4000);
+    nextSpawnAt = now + base * factor;
   }
-
   function randomNonBlueRedColor() {
     while (true) {
       const h = Math.floor(Math.random() * 360);
@@ -170,45 +185,68 @@
     }
   }
 
-  function resetGrowthSchedule() {
-    growthPct = 25;
-    growthUsesLeft = 5;
-    phasePctEl.textContent = `${growthPct}%`;
+  // % de crecimiento según nivel (tu tabla)
+  function pctForLevel(level) {
+    if (level <= 0) return 0;
+    if (level <= 10) return 25;
+    if (level <= 15) return 20;
+    if (level <= 20) return 15;
+    if (level <= 25) return 10;
+    return 5;
   }
-  function maybeAdvancePhase() {
-    if (growthUsesLeft > 0) return;
-    if (growthPct > 5) {
-      growthPct = Math.max(5, growthPct - 5);
-      growthUsesLeft = (growthPct === 5) ? Infinity : 5;
-      phasePctEl.textContent = `${growthPct}%`;
-      addLog(`Fase de crecimiento → ${growthPct}%`, 'warn');
+
+  // Crecer: sube nivel y aplica % de SU nuevo nivel
+  function applyGrowthStep(ball, source) {
+    const prev = ball.level;
+    ball.level++;
+    const pct = pctForLevel(ball.level);
+    ball.r = Math.min(R, ball.r * (1 + pct/100));
+    addLog(`${ball.id} ${source}: nivel ${prev}→${ball.level} (+${pct}%)`);
+    updateScoreboard();
+  }
+  // Decrecer: aplica inverso del % de su nivel ACTUAL y luego baja nivel
+  function applyShrinkStep(ball, source) {
+    const prev = ball.level;
+    const pct = pctForLevel(ball.level);
+    ball.r = Math.max(2, ball.r / (1 + pct/100)); // revierte exactamente el último paso
+    ball.level--;
+    addLog(`${ball.id} ${source}: nivel ${prev}→${ball.level} (−${pct}%)`);
+    updateScoreboard();
+    if (ball.level <= 0) {
+      ball.alive = false;
+      addLog(`${ball.id} ha muerto (nivel 0).`, 'err');
     }
   }
-  function currentShrinkPct() {
-    return Math.min(25, growthPct + 5); // “fase anterior”
+
+  // Velocidad por pelota (default 1.5×; verdes = 2× / 0.5× por 5s)
+  function effectiveSpeed(ball, nowMs) {
+    if (ball.speedEffect !== 'none' && nowMs >= ball.speedEffectUntil) {
+      const prev = ball.speedEffect;
+      ball.speedEffect = 'none';
+      addLog(`${ball.id}: Fin efecto de velocidad (${prev})`, 'warn');
+    }
+    if (ball.speedEffect === 'boost') return defaultSpeed * 2;
+    if (ball.speedEffect === 'slow')  return defaultSpeed * 0.5;
+    return defaultSpeed;
+  }
+  function setSpeedEffect(ball, type, nowMs) {
+    ball.speedEffect = type; // 'boost' | 'slow'
+    ball.speedEffectUntil = nowMs + 5000;
+    addLog(`${ball.id}: Efecto velocidad → ${type === 'boost' ? '2×' : '0.5×'} (5s)`, 'warn');
+  }
+  function applySpeedToVelocity(ball, targetSpeed) {
+    const mag = Math.hypot(ball.vel.x, ball.vel.y);
+    if (mag > 0) {
+      const nx = ball.vel.x / mag, ny = ball.vel.y / mag;
+      ball.vel.x = nx * targetSpeed;
+      ball.vel.y = ny * targetSpeed;
+    }
   }
 
-  function applyGrowthStep(source) {
-    const pct = growthPct;
-    r = Math.min(R, r * (1 + pct / 100));
-    if (growthUsesLeft !== Infinity && growthUsesLeft > 0) growthUsesLeft--;
-    maybeAdvancePhase();
-    sizeSteps++;
-    sizeStepsEl.textContent = String(sizeSteps);
-    addLog(`${source}: +${pct}% (tamaño = ${(r/R*100).toFixed(1)}%)`);
-  }
-
-  function applyShrinkStep(source) {
-    const prevPct = currentShrinkPct();
-    r = Math.max(2, r / (1 + prevPct / 100)); // inverso exacto
-    sizeSteps--;
-    sizeStepsEl.textContent = String(sizeSteps);
-    addLog(`${source}: -${prevPct}% (tamaño = ${(r/R*100).toFixed(1)}%)`);
-  }
-
+  // Mundo
   function resize() {
     const dpr = Math.max(1, window.devicePixelRatio || 1);
-    const cssSize = Math.min(window.innerWidth * 0.95, 720);
+    const cssSize = Math.min(window.innerWidth * 0.96, 900);
     canvas.width = Math.floor(cssSize * dpr);
     canvas.height = Math.floor(cssSize * dpr);
     ctx.setTransform(1,0,0,1,0,0);
@@ -216,84 +254,93 @@
     ctx.translate(cssSize/2, cssSize/2);
     R = (cssSize/2) - 10;
     baseSpeed = R * 0.45;
-    defaultSpeed = baseSpeed * 1.5; // ← velocidad por defecto (antes x1.5)
+    defaultSpeed = baseSpeed * 1.5; // velocidad por defecto
     addLog('Canvas redimensionado', 'info');
   }
 
-  function effectiveSpeed(nowMs) {
-    if (speedEffect !== 'none' && nowMs >= speedEffectUntil) {
-      // expiró el efecto
-      const prev = speedEffect;
-      speedEffect = 'none';
-      addLog(`Fin efecto de velocidad (${prev})`, 'warn');
-    }
-    if (speedEffect === 'boost') return defaultSpeed * 2;
-    if (speedEffect === 'slow')  return defaultSpeed * 0.5;
-    return defaultSpeed;
+  function clampInputs() {
+    let n = Number(ballCountInput.value); if (!Number.isFinite(n)) n = 1;
+    ballCount = Math.max(1, Math.min(50, Math.floor(n)));
+    ballCountInput.value = String(ballCount);
+
+    let mp = Number(maxPillsInput.value); if (!Number.isFinite(mp)) mp = 5;
+    maxPills = Math.max(0, Math.floor(mp));
+    maxPillsInput.value = String(maxPills);
+
+    let sr = Number(spawnRateInput.value); if (!Number.isFinite(sr)) sr = 100;
+    spawnRatePct = Math.max(25, Math.min(300, Math.floor(sr)));
+    spawnRateInput.value = String(spawnRatePct);
+    spawnRateVal.textContent = `${spawnRatePct}%`;
   }
 
-  function setSpeedEffect(type, nowMs) {
-    speedEffect = type; // 'boost' o 'slow'
-    speedEffectUntil = nowMs + 5000; // 5 s
-    addLog(type === 'boost' ? 'Efecto: 2× vel (5s)' : 'Efecto: 0.5× vel (5s)', 'warn');
-  }
-
-  function applySpeedToVelocity(targetSpeed) {
-    const mag = Math.hypot(vel.x, vel.y);
-    if (mag > 0) {
-      const nx = vel.x / mag, ny = vel.y / mag;
-      vel.x = nx * targetSpeed;
-      vel.y = ny * targetSpeed;
-    } // si está quieto (antes de iniciar), no hace nada
-  }
-
-  function clampMaxPills() {
-    let v = Number(maxPillsInput.value);
-    if (!Number.isFinite(v)) v = 3;
-    v = Math.max(0, Math.min(9999, Math.floor(v))); // ← ya no topa en 12
-    maxPillsInput.value = String(v);
-    return v;
+  function updateScoreboard() {
+    const items = balls
+      .filter(b => b.alive)
+      .map(b => `<span class="badge" style="background:${b.color}22;color:${b.color};border:1px solid ${b.color}66">${b.id}: Nivel ${b.level}</span>`);
+    scoreboardEl.innerHTML = items.join('');
   }
 
   function init() {
-    // estado base
-    paused = false;
-    pauseAccumMs = 0;
-    speedEffect = 'none';
-    speedEffectUntil = 0;
-
-    vel = { x: 0, y: 0 };
-    pos = { x: 0, y: 0 };
-    r = 10;
-
+    paused = false; pauseAccumMs = 0;
     logs.length = 0;
     resize();
+    clampInputs();
 
-    sizeSteps = 1;
-    sizeStepsEl.textContent = String(sizeSteps);
-    elapsed = 0;
-    ballColor = randomNonBlueRedColor(); // color fijo aleatorio (ni azul ni rojo)
-    resetGrowthSchedule();
+    // Crear pelotas
+    balls.length = 0;
+    for (let i = 0; i < ballCount; i++) {
+      const id = `P${i+1}`;
+      const color = randomNonBlueRedColor();
+      // pos inicial separada (pequeño anillo) y con inmunidad
+      const a = randomAngle();
+      const rr = 5 + Math.random() * 20 + i * 2;
+      const pos = { x: Math.cos(a) * rr, y: Math.sin(a) * rr };
+      const ball = {
+        id, color,
+        pos, vel: { x: 0, y: 0 },
+        r: 10,
+        level: LEVEL_START,
+        alive: true,
+        speedEffect: 'none',
+        speedEffectUntil: 0,
+        noCollideUntil: 0, // set al iniciar
+      };
+      balls.push(ball);
+      addLog(`${id} listo (nivel ${LEVEL_START})`, 'info');
+    }
+
+    // Reset pildoras y timers
+    pills.length = 0;
+    nextSpawnAt = null;
+
+    // UI
     timeEl.textContent = '0.00';
     state = 'idle';
     startBtn.disabled = false;
     pauseBtn.disabled = true;
     pauseBtn.textContent = 'Pausar';
-    pills.length = 0;
-    nextSpawnAt = null;
-    maxPills = clampMaxPills();
-    addLog('Listo: pulsa INICIAR', 'info');
+    ballCountInput.disabled = false;
+    maxPillsInput.disabled = false;
+    spawnRateInput.disabled = false;
+
+    updateScoreboard();
+    addLog('Configura y pulsa INICIAR', 'info');
     draw();
   }
 
   function startGame() {
     startBtn.disabled = true;
     pauseBtn.disabled = false;
-
-    const a = Math.random() * Math.PI * 2;
-    const v0 = effectiveSpeed(performance.now());
-    vel.x = Math.cos(a) * v0;
-    vel.y = Math.sin(a) * v0;
+    ballCountInput.disabled = true;
+    // puedes ajustar maxPills/spawnRate en vivo
+    const now = performance.now();
+    for (const b of balls) {
+      const a = randomAngle();
+      const v0 = effectiveSpeed(b, now);
+      b.vel.x = Math.cos(a) * v0;
+      b.vel.y = Math.sin(a) * v0;
+      b.noCollideUntil = now + SPAWN_IMMUNITY_MS; // inmunidad inicial
+    }
 
     state = 'running';
     startTime = performance.now();
@@ -308,114 +355,165 @@
       if (dt > 0.05) dt = 0.05;
       update(dt, now);
       draw();
-      if (state === 'running' || (state === 'running' && paused)) loop(now);
-      else if (state === 'running') loop(now); // fallback
-      else if (state === 'paused') loop(now);  // mantenemos el bucle para dibujar
-      else if (state === 'ended') {}           // fin
-      else loop(now);                          // idle sigue dibujando
+      loop(now); // seguimos dibujando incluso en pausa
     });
   }
 
+  function checkWinConditions() {
+    const alive = balls.filter(b => b.alive);
+    if (alive.length === 0) {
+      state = 'ended';
+      startBtn.disabled = false; pauseBtn.disabled = true;
+      addLog('Todas las pelotas murieron. Sin ganador.', 'warn');
+      return true;
+    }
+    for (const b of alive) {
+      if (b.r >= R - 0.5) {
+        state = 'ended';
+        startBtn.disabled = false; pauseBtn.disabled = true;
+        addLog(`${b.id} alcanzó 100% del tamaño. ¡Ganador!`, 'warn');
+        return true;
+      }
+    }
+    if (alive.length === 1) {
+      state = 'ended';
+      startBtn.disabled = false; pauseBtn.disabled = true;
+      addLog(`${alive[0].id} es el último con vida. ¡Ganador!`, 'warn');
+      return true;
+    }
+    return false;
+  }
+
   function update(dt, now) {
-    // Cronómetro (no cuenta tiempo en pausa)
+    // Cronómetro (sin avanzar en pausa)
     if (state === 'running' && !paused) {
       elapsed = (now - startTime - pauseAccumMs) / 1000;
       timeEl.textContent = elapsed.toFixed(2);
     }
-
     if (state !== 'running' || paused) return;
 
-    // Spawning de píldoras (respeta límite)
+    // Spawn de píldoras con límite
     if (nextSpawnAt !== null && now >= nextSpawnAt) {
       if (pills.length < maxPills) {
         spawnRandomPill();
         scheduleNextSpawn(now);
       } else {
-        scheduleNextSpawn(now, 800); // reintento cuando está lleno
+        scheduleNextSpawn(now, 800);
       }
     }
 
-    // Ajustar velocidad efectiva (por efectos)
-    const targetSpeed = effectiveSpeed(now);
-    applySpeedToVelocity(targetSpeed);
+    // Actualizar cada pelota
+    for (const b of balls) {
+      if (!b.alive) continue;
 
-    // Mover
-    pos.x += vel.x * dt;
-    pos.y += vel.y * dt;
+      // Ajustar velocidad según efectos
+      const targetSpeed = effectiveSpeed(b, now);
+      applySpeedToVelocity(b, targetSpeed);
 
-    // Colisión con borde (tolerancia + anti rebote fantasma)
-    let dist = Math.hypot(pos.x, pos.y);
-    let nx = dist === 0 ? 1 : pos.x / dist;
-    let ny = dist === 0 ? 0 : pos.y / dist;
+      // Mover
+      b.pos.x += b.vel.x * dt;
+      b.pos.y += b.vel.y * dt;
 
-    const limit = R - r;
-    const EPS = 0.001;
-    const touching = dist >= (limit - EPS);
-    const movingOutward = (vel.x * nx + vel.y * ny) > 0;
+      // Colisión con borde (anti rebote fantasma)
+      let dist = Math.hypot(b.pos.x, b.pos.y);
+      let nx = dist === 0 ? 1 : b.pos.x / dist;
+      let ny = dist === 0 ? 0 : b.pos.y / dist;
 
-    if (touching && movingOutward) {
-      pos.x = nx * limit;
-      pos.y = ny * limit;
+      const limit = R - b.r;
+      const EPS = 0.001;
+      const touching = dist >= (limit - EPS);
+      const movingOutward = (b.vel.x * nx + b.vel.y * ny) > 0;
 
-      applyGrowthStep('Rebote');
+      if (touching && movingOutward) {
+        b.pos.x = nx * limit;
+        b.pos.y = ny * limit;
 
-      if (r >= R - 0.5) {
-        state = 'ended';
-        startBtn.disabled = false;
-        pauseBtn.disabled = true;
-        cancelAnimationFrame(rafId);
-        addLog('Fin del juego: tamaño 100%', 'warn');
-        return;
+        applyGrowthStep(b, 'Rebote');
+
+        if (checkWinConditions()) return;
+
+        // Nueva dirección aleatoria hacia adentro
+        let vx, vy;
+        do {
+          const a = randomAngle();
+          vx = Math.cos(a) * targetSpeed;
+          vy = Math.sin(a) * targetSpeed;
+        } while ((vx * nx + vy * ny) >= 0);
+        b.vel.x = vx; b.vel.y = vy;
+
+        // Empujón hacia adentro
+        const newLimit = R - b.r;
+        const inset = Math.max(1, targetSpeed * dt);
+        const t = Math.max(0, newLimit - inset);
+        b.pos.x = nx * t;
+        b.pos.y = ny * t;
       }
-
-      // Nueva dirección aleatoria hacia adentro
-      let vx, vy;
-      do {
-        const a = Math.random() * Math.PI * 2;
-        vx = Math.cos(a) * targetSpeed;
-        vy = Math.sin(a) * targetSpeed;
-      } while ((vx * nx + vy * ny) >= 0);
-
-      vel.x = vx;
-      vel.y = vy;
-
-      // Empujón hacia adentro
-      const newLimit = R - r;
-      const inset = Math.max(1, targetSpeed * dt);
-      const t = Math.max(0, newLimit - inset);
-      pos.x = nx * t;
-      pos.y = ny * t;
     }
 
-    // Colisión con píldoras (no rebotan)
-    for (let i = pills.length - 1; i >= 0; i--) {
-      const p = pills[i];
-      const d = Math.hypot(pos.x - p.x, pos.y - p.y);
-      if (d <= r + PILL_RADIUS) {
-        if (p.type === 'blue') {
-          applyGrowthStep('Píldora azul');
-          if (r >= R - 0.5) {
-            state = 'ended';
-            startBtn.disabled = false;
-            pauseBtn.disabled = true;
-            cancelAnimationFrame(rafId);
-            addLog('Fin del juego: tamaño 100%', 'warn');
-            return;
-          }
-        } else if (p.type === 'red') {
-          applyShrinkStep('Píldora roja');
-        } else if (p.type === 'greenFast') {
-          setSpeedEffect('boost', now);
-        } else if (p.type === 'greenSlow') {
-          setSpeedEffect('slow', now);
+    // Colisiones pelota-pelota (con inmunidad inicial)
+    for (let i = 0; i < balls.length; i++) {
+      const A = balls[i]; if (!A.alive) continue;
+      for (let j = i+1; j < balls.length; j++) {
+        const B = balls[j]; if (!B.alive) continue;
+
+        // inmunidad al aparecer
+        if (now < A.noCollideUntil || now < B.noCollideUntil) continue;
+
+        const dx = B.pos.x - A.pos.x;
+        const dy = B.pos.y - A.pos.y;
+        const d = Math.hypot(dx, dy);
+        const minDist = A.r + B.r;
+        if (d > 0 && d <= minDist) {
+          const nx = dx / d, ny = dy / d;
+          const overlap = minDist - d + 0.5;
+          A.pos.x -= nx * overlap/2; A.pos.y -= ny * overlap/2;
+          B.pos.x += nx * overlap/2; B.pos.y += ny * overlap/2;
+          // reflejo simple
+          const vaDot = A.vel.x*nx + A.vel.y*ny;
+          const vbDot = B.vel.x*nx + B.vel.y*ny;
+          A.vel.x -= 2*vaDot*nx; A.vel.y -= 2*vaDot*ny;
+          B.vel.x -= 2*vbDot*nx; B.vel.y -= 2*vbDot*ny;
+
+          // ambas decrecen 1 nivel (reversible exacto)
+          applyShrinkStep(A, `Colisión con ${B.id}`);
+          applyShrinkStep(B, `Colisión con ${A.id}`);
+
+          if (checkWinConditions()) return;
         }
-        pills.splice(i, 1); // consumida
       }
+    }
+
+    // Colisiones con píldoras (no rebotan)
+    for (let pi = pills.length - 1; pi >= 0; pi--) {
+      const p = pills[pi];
+      let consumed = false;
+
+      for (const b of balls) {
+        if (!b.alive) continue;
+        const d = Math.hypot(b.pos.x - p.x, b.pos.y - p.y);
+        if (d <= b.r + PILL_RADIUS) {
+          if (p.type === 'blue') {
+            applyGrowthStep(b, 'Píldora azul');
+            if (checkWinConditions()) return;
+          } else if (p.type === 'red') {
+            applyShrinkStep(b, 'Píldora roja');
+            if (checkWinConditions()) return;
+          } else if (p.type === 'greenFast') {
+            setSpeedEffect(b, 'boost', now);
+          } else if (p.type === 'greenSlow') {
+            setSpeedEffect(b, 'slow', now);
+          }
+          addLog(`${b.id} consumió píldora ${p.name}.`);
+          consumed = true;
+          break;
+        }
+      }
+      if (consumed) pills.splice(pi, 1);
     }
   }
 
   function draw() {
-    const cssSize = Math.min(window.innerWidth * 0.95, 720);
+    const cssSize = Math.min(window.innerWidth * 0.96, 900);
     ctx.clearRect(-cssSize/2, -cssSize/2, cssSize, cssSize);
 
     // Circunferencia grande
@@ -429,8 +527,8 @@
     for (const p of pills) {
       if (p.type === 'blue') ctx.fillStyle = '#1877F2';
       else if (p.type === 'red') ctx.fillStyle = '#E53935';
-      else if (p.type === 'greenFast') ctx.fillStyle = '#7CFC00';   // verde claro
-      else ctx.fillStyle = '#2E7D32';                                // verde oscuro
+      else if (p.type === 'greenFast') ctx.fillStyle = '#7CFC00';   // verde claro (2×)
+      else ctx.fillStyle = '#2E7D32';                                // verde oscuro (0.5×)
       ctx.beginPath();
       ctx.arc(p.x, p.y, PILL_RADIUS, 0, Math.PI * 2);
       ctx.fill();
@@ -440,43 +538,54 @@
       ctx.fill();
     }
 
-    // Pelota
-    ctx.fillStyle = ballColor;
-    ctx.beginPath();
-    ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
-    ctx.fill();
+    // Pelotas
+    for (const b of balls) {
+      if (!b.alive) continue;
+      ctx.fillStyle = b.color;
+      ctx.beginPath();
+      ctx.arc(b.pos.x, b.pos.y, b.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
-    // Mensajes en el centro
+    // Mensajes
     ctx.fillStyle = '#333';
     ctx.font = '14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    if (state === 'idle') ctx.fillText('Haz click en INICIAR', 0, 0);
-    if (state === 'ended') ctx.fillText('¡Fin! Alcanzaste el 100%', 0, 0);
+    if (state === 'idle') ctx.fillText('Configura y haz click en INICIAR', 0, 0);
+    if (state === 'ended') ctx.fillText('Juego terminado', 0, 0);
     if (paused && state === 'running') ctx.fillText('PAUSADO (P para reanudar)', 0, 0);
   }
 
+  // Probabilidad: azul, roja, verde clara = mismas; verde oscura = 25% de una
   function spawnRandomPill() {
-    // Tipos: blue, red, greenFast (2×), greenSlow (0.5×)
-    const rnum = Math.random();
-    let type;
-    if (rnum < 0.25) type = 'blue';
-    else if (rnum < 0.5) type = 'red';
-    else if (rnum < 0.75) type = 'greenFast';
-    else type = 'greenSlow';
+    // pesos: [1,1,1,0.25] → total 3.25
+    const weights = [
+      {type:'blue',       name:'azul',              w:1},
+      {type:'red',        name:'roja',             w:1},
+      {type:'greenFast',  name:'verde claro (2×)', w:1},
+      {type:'greenSlow',  name:'verde oscuro (0.5×)', w:0.25},
+    ];
+    const total = weights.reduce((s,o)=>s+o.w,0);
+    let r = Math.random()*total, pick = weights[0];
+    for (const o of weights) { if ((r-=o.w) <= 0) { pick=o; break; } }
 
     const maxR = R - PILL_RADIUS - 4;
-    let x, y;
-    for (let tries = 0; tries < 20; tries++) {
-      const a = Math.random() * Math.PI * 2;
+    let x=0, y=0;
+    for (let tries = 0; tries < 25; tries++) {
+      const a = randomAngle();
       const rr = Math.sqrt(Math.random()) * maxR;
       x = Math.cos(a) * rr;
       y = Math.sin(a) * rr;
-      if (Math.hypot(x - pos.x, y - pos.y) > (r + PILL_RADIUS + 12)) break;
+      let ok = true;
+      for (const b of balls) {
+        if (!b.alive) continue;
+        if (Math.hypot(x - b.pos.x, y - b.pos.y) <= b.r + PILL_RADIUS + 12) { ok = false; break; }
+      }
+      if (ok) break;
     }
-    pills.push({ x, y, type });
-    const name = type === 'blue' ? 'azul' : type === 'red' ? 'roja' : (type === 'greenFast' ? 'verde claro (2×)' : 'verde oscuro (0.5×)');
-    addLog(`Spawn píldora ${name} en (${x.toFixed(0)},${y.toFixed(0)})`, 'info');
+    pills.push({ x, y, type: pick.type, name: pick.name });
+    addLog(`Spawn píldora ${pick.name} en (${x.toFixed(0)},${y.toFixed(0)})`, 'info');
   }
 
   // Pausa / reanudar
@@ -487,15 +596,15 @@
       pauseStartMs = performance.now();
       pauseBtn.textContent = 'Reanudar';
       addLog('Pausa', 'warn');
-      // estado pseudo 'paused' para mantener RAF y poder dibujar
     } else {
       const delta = performance.now() - pauseStartMs;
       pauseAccumMs += delta;
       pauseStartMs = 0;
       pauseBtn.textContent = 'Pausar';
-      // Mover timers para que no “corran” durante la pausa
       if (nextSpawnAt !== null) nextSpawnAt += delta;
-      if (speedEffect !== 'none') speedEffectUntil += delta;
+      for (const b of balls) {
+        if (b.speedEffect !== 'none') b.speedEffectUntil += delta;
+      }
       addLog('Reanudar', 'warn');
     }
   }
@@ -504,10 +613,11 @@
   startBtn.addEventListener('click', () => { if (state === 'idle') startGame(); });
   resetBtn.addEventListener('click', () => { cancelAnimationFrame(rafId); init(); });
   pauseBtn.addEventListener('click', togglePause);
-  maxPillsInput.addEventListener('change', () => {
-    maxPills = clampMaxPills();
-    addLog(`Límite de píldoras → ${maxPills}`, 'info');
-  });
+
+  ballCountInput.addEventListener('change', () => { if (state==='idle') clampInputs(); });
+  maxPillsInput.addEventListener('change', () => { clampInputs(); addLog(`Límite píldoras → ${maxPills}`, 'info'); });
+  spawnRateInput.addEventListener('input', () => { clampInputs(); addLog(`Frecuencia spawn → ${spawnRatePct}%`, 'info'); });
+
   window.addEventListener('resize', () => { init(); });
 
   // Logs UI
@@ -517,14 +627,10 @@
 
   // Hotkey: P pausa/reanuda
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'p' || e.key === 'P') {
-      e.preventDefault();
-      togglePause();
-    }
+    if (e.key === 'p' || e.key === 'P') { e.preventDefault(); togglePause(); }
   });
 
   // Boot
-  let ballColor = randomNonBlueRedColor(); // definido arriba en init de nuevo, pero seteamos uno por si acaso
   init();
 })();
 </script>
