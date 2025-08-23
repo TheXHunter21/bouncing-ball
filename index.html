@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Bola dentro de circunferencia — crecimiento por fases</title>
+<title>Bola + Píldoras (crecimiento por fases)</title>
 <style>
   :root { color-scheme: light dark; }
   body { margin: 0; font-family: system-ui, Segoe UI, Roboto, sans-serif; display: grid; place-items: center; min-height: 100dvh; gap: 12px; }
@@ -32,9 +32,9 @@
       <button id="start">INICIAR</button>
       <button id="reset">Reiniciar</button>
       <div class="hud">
-        Rebotes: <span id="bounces">0</span> ·
         Tiempo: <span id="time">0.00</span>s ·
-        Tamaño: <span id="sizePct">0.0</span>%
+        Crecimientos: <span id="sizeSteps">1</span> ·
+        Fase: <span id="phasePct">25%</span>
       </div>
     </div>
     <canvas id="game"></canvas>
@@ -48,33 +48,77 @@
   const speedSel = document.getElementById('speedSel');
   const startBtn = document.getElementById('start');
   const resetBtn = document.getElementById('reset');
-  const bouncesEl = document.getElementById('bounces');
   const timeEl = document.getElementById('time');
-  const sizePctEl = document.getElementById('sizePct');
+  const sizeStepsEl = document.getElementById('sizeSteps');
+  const phasePctEl = document.getElementById('phasePct');
 
   let state = 'idle'; // 'idle' | 'running' | 'ended'
-  let R, r, pos, vel, baseSpeed, speedMul, speed, color;
-  let bounces = 0, startTime = 0, elapsed = 0, rafId = null;
+  let R, r, pos, vel, baseSpeed, speedMul, speed, ballColor;
+  let sizeSteps = 1, startTime = 0, elapsed = 0, rafId = null;
 
-  // Crecimiento por fases
-  // 25% (5 veces) -> 20% (5) -> 15% (5) -> 10% (5) -> 5% (∞)
-  let growthPct, growthUsesLeft;
+  // Crecimiento por fases: 25% (x5) -> 20% (x5) -> 15% (x5) -> 10% (x5) -> 5% (∞)
+  let growthPct, growthUsesLeft; // pct de la fase actual y usos restantes en la fase
+
+  // Píldoras
+  const pills = [];
+  const PILL_RADIUS = 8;
+  let nextSpawnAt = null; // timestamp (performance.now) para siguiente spawn
+
+  function randomRange(a, b) { return a + Math.random() * (b - a); }
+
+  function scheduleNextSpawn(now = performance.now()) {
+    // Próximo spawn entre 1.5s y 4s desde ahora
+    nextSpawnAt = now + randomRange(1500, 4000);
+  }
+
+  function randomNonBlueRedColor() {
+    // Evitar rojos (~[-15,15]) y azules (~[200,260]) en hue
+    while (true) {
+      const h = Math.floor(Math.random() * 360);
+      const redZone = (h <= 15 || h >= 345);
+      const blueZone = (h >= 200 && h <= 260);
+      if (!redZone && !blueZone) {
+        const s = 70 + Math.random() * 20;
+        const l = 55 + Math.random() * 15;
+        return `hsl(${h} ${s}% ${l}%)`;
+      }
+    }
+  }
 
   function resetGrowthSchedule() {
     growthPct = 25;
     growthUsesLeft = 5;
+    updatePhaseHud();
+  }
+  function updatePhaseHud() {
+    phasePctEl.textContent = `${growthPct}%`;
+  }
+  function currentShrinkPct() {
+    // pct de la fase anterior (ej.: si actual=20 → shrink=25; si actual=5 → shrink=10)
+    // Nota: en 25% la "anterior" también la tratamos como 25%.
+    return Math.min(25, growthPct + 5);
   }
 
-  function applyGrowth() {
-    // Aumenta según growthPct actual
+  function applyGrowthStep() {
+    // Crece según la fase actual
     r = Math.min(R, r * (1 + growthPct / 100));
-    // Consumir un uso de esta fase
+    // Avanza la fase (consumimos un uso) porque esto cuenta como un "crecimiento"
     if (growthUsesLeft > 0) growthUsesLeft--;
-    // Si se agotaron los 5 usos y aún podemos bajar el factor, bajar 5% y resetear a 5 usos
     if (growthUsesLeft === 0 && growthPct > 5) {
       growthPct = Math.max(5, growthPct - 5);
-      growthUsesLeft = (growthPct === 5) ? Infinity : 5; // a 5% se queda para siempre
+      growthUsesLeft = (growthPct === 5) ? Infinity : 5;
+      updatePhaseHud();
     }
+    sizeSteps++; // contador de crecimientos (+1)
+    sizeStepsEl.textContent = String(sizeSteps);
+  }
+
+  function applyShrinkStep() {
+    // Decrece usando la fase ANTERIOR, para volver a un tamaño "previo"
+    const prevPct = currentShrinkPct();
+    r = Math.max(2, r / (1 + prevPct / 100)); // inverso multiplicativo (ej. /1.25)
+    sizeSteps--; // contador de crecimientos (-1)
+    sizeStepsEl.textContent = String(sizeSteps);
   }
 
   function resize() {
@@ -95,38 +139,26 @@
     speed = baseSpeed * speedMul;
   }
 
-  function randomColor() {
-    const h = Math.floor(Math.random() * 360);
-    const s = 70 + Math.random() * 20;
-    const l = 55 + Math.random() * 15;
-    return `hsl(${h} ${s}% ${l}%)`;
-  }
-
-  function updateSizeHud() {
-    const pct = (r / R) * 100;
-    sizePctEl.textContent = pct.toFixed(1);
-  }
-
   function init() {
     resize();
     r = 10;
     pos = { x: 0, y: 0 };
     vel = { x: 0, y: 0 };
-    bounces = 0;
+    sizeSteps = 1;
+    sizeStepsEl.textContent = String(sizeSteps);
     elapsed = 0;
-    color = randomColor();
+    ballColor = randomNonBlueRedColor(); // color fijo aleatorio (no azul/rojo)
     resetGrowthSchedule();
-    bouncesEl.textContent = '0';
     timeEl.textContent = '0.00';
-    updateSizeHud();
     state = 'idle';
     speedSel.disabled = false;
     startBtn.disabled = false;
+    pills.length = 0;
+    nextSpawnAt = null;
     draw();
   }
 
   function startGame() {
-    // bloquear UI de velocidad durante la partida
     speedSel.disabled = true;
     startBtn.disabled = true;
 
@@ -137,6 +169,7 @@
 
     state = 'running';
     startTime = performance.now();
+    scheduleNextSpawn(startTime);
     loop(startTime);
   }
 
@@ -144,16 +177,22 @@
     rafId = requestAnimationFrame(now => {
       let dt = (now - prev) / 1000;
       if (dt > 0.05) dt = 0.05; // evita saltos grandes
-      update(dt);
+      update(dt, now);
       draw();
       if (state === 'running') loop(now);
     });
   }
 
-  function update(dt) {
+  function update(dt, now) {
     if (state !== 'running') return;
     elapsed = (performance.now() - startTime) / 1000;
     timeEl.textContent = elapsed.toFixed(2);
+
+    // Spawning de píldoras
+    if (nextSpawnAt !== null && now >= nextSpawnAt) {
+      spawnRandomPill();
+      scheduleNextSpawn(now);
+    }
 
     // Mover
     pos.x += vel.x * dt;
@@ -174,14 +213,8 @@
       pos.x = nx * limit;
       pos.y = ny * limit;
 
-      // Efectos de rebote
-      bounces += 1;
-      bouncesEl.textContent = String(bounces);
-      color = randomColor();
-
-      // Crecer por la función de fases
-      applyGrowth();
-      updateSizeHud();
+      // CRECER por fase (esto cuenta como "crecimiento")
+      applyGrowthStep();
 
       // ¿Fin del juego?
       if (r >= R - 0.5) {
@@ -205,15 +238,36 @@
 
       // Empujón hacia adentro tras crecer (evita doble colisión inmediata)
       const newLimit = R - r;
-      const inset = Math.max(1, speed * dt); // al menos 1px o un paso de movimiento
+      const inset = Math.max(1, speed * dt);
       const target = Math.max(0, newLimit - inset);
       pos.x = nx * target;
       pos.y = ny * target;
 
-      // (Opcional) limpiar normal
+      // Recalcular normal (opcional)
       dist = Math.hypot(pos.x, pos.y);
       nx = dist === 0 ? 1 : pos.x / dist;
       ny = dist === 0 ? 0 : pos.y / dist;
+    }
+
+    // Colisión con píldoras (no rebotan)
+    for (let i = pills.length - 1; i >= 0; i--) {
+      const p = pills[i];
+      const d = Math.hypot(pos.x - p.x, pos.y - p.y);
+      if (d <= r + PILL_RADIUS) {
+        if (p.type === 'blue') {
+          applyGrowthStep(); // crecer como si fuera rebote
+          if (r >= R - 0.5) {
+            state = 'ended';
+            speedSel.disabled = false;
+            startBtn.disabled = false;
+            cancelAnimationFrame(rafId);
+            return;
+          }
+        } else {
+          applyShrinkStep(); // decrecer con fase anterior (inverso exacto)
+        }
+        pills.splice(i, 1); // consumida
+      }
     }
   }
 
@@ -228,8 +282,21 @@
     ctx.arc(0, 0, R, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Pelota
-    ctx.fillStyle = color;
+    // Píldoras (persisten hasta consumirse)
+    for (const p of pills) {
+      ctx.fillStyle = (p.type === 'blue') ? '#1877F2' : '#E53935'; // azul/rojo visibles
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, PILL_RADIUS, 0, Math.PI * 2);
+      ctx.fill();
+      // un pequeño brillo
+      ctx.fillStyle = '#fff8';
+      ctx.beginPath();
+      ctx.arc(p.x - PILL_RADIUS/3, p.y - PILL_RADIUS/3, PILL_RADIUS/3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Pelota (color fijo aleatorio, no cambia)
+    ctx.fillStyle = ballColor;
     ctx.beginPath();
     ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
     ctx.fill();
@@ -241,6 +308,24 @@
     ctx.textBaseline = 'middle';
     if (state === 'idle') ctx.fillText('Haz click en INICIAR', 0, 0);
     if (state === 'ended') ctx.fillText('¡Fin! Alcanzaste el 100%', 0, 0);
+  }
+
+  function spawnRandomPill() {
+    // Tipo aleatorio 50/50
+    const type = Math.random() < 0.5 ? 'blue' : 'red';
+    // Posición aleatoria dentro del círculo (evitar bordes)
+    // Elegimos un radio uniforme en área: r = sqrt(u) * max
+    const maxR = R - PILL_RADIUS - 4;
+    let x, y;
+    for (let tries = 0; tries < 20; tries++) {
+      const a = Math.random() * Math.PI * 2;
+      const rr = Math.sqrt(Math.random()) * maxR;
+      x = Math.cos(a) * rr;
+      y = Math.sin(a) * rr;
+      // evitar spawnear encima de la pelota (opcional)
+      if (Math.hypot(x - pos.x, y - pos.y) > (r + PILL_RADIUS + 12)) break;
+    }
+    pills.push({ x, y, type });
   }
 
   // Eventos
