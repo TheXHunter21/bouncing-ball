@@ -3,15 +3,12 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Battle Balls — morph amarillo + ajustes</title>
+<title>Battle Balls — config modal + morph revert + fantasma</title>
 <style>
   :root { color-scheme: light dark; }
   body { margin: 0; font-family: system-ui, Segoe UI, Roboto, sans-serif; display: grid; place-items: center; min-height: 100dvh; gap: 12px; }
   .wrap { display: grid; gap: 10px; width: min(900px, 96vw); }
   .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-  label { display: inline-flex; align-items: center; gap: 6px; }
-  input[type="number"], input[type="range"] { padding: 6px 8px; border-radius: 10px; border: 1px solid #8884; }
-  input[type="range"] { width: 180px; }
   button { padding: 8px 14px; border: 0; border-radius: 12px; cursor: pointer; box-shadow: 0 2px 10px #0002; }
   button:disabled { opacity: 0.6; cursor: not-allowed; }
   .hud { font-weight: 600; display:flex; gap:12px; flex-wrap: wrap; align-items:center;}
@@ -19,6 +16,7 @@
   .badge { padding: 2px 8px; border-radius: 999px; font-weight: 700; box-shadow: 0 1px 4px #0002; background: transparent; }
   canvas { width: 100%; aspect-ratio: 1 / 1; background: conic-gradient(from 180deg at 50% 50%, #fff0, #fff0); border-radius: 16px; box-shadow: inset 0 0 0 1px #0002; }
 
+  /* LOG overlay */
   .log-toggle { margin-left: auto; }
   .log-overlay {
     position: fixed; inset: 16px 16px auto auto;
@@ -28,45 +26,37 @@
     box-shadow: 0 10px 30px #0008; z-index: 9999; display: none;
     backdrop-filter: blur(6px);
   }
-  .log-overlay header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 8px 10px; border-bottom: 1px solid #ffffff22; font-weight: 700;
+  .log-overlay header { display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 10px; border-bottom: 1px solid #ffffff22; font-weight: 700; }
+  .log-overlay main { padding: 8px 10px; height: calc(60vh - 48px - 12px);
+    overflow: auto; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.35; }
+  .log-time { color: #9ad0ff; } .log-info { color: #d6f5d6; } .log-warn { color: #ffe59a; } .log-err{ color:#ffb3b3; }
+
+  /* CONFIG modal */
+  .modal { position: fixed; inset: 0; display: none; place-items: center; z-index: 10000; }
+  .modal.show { display: grid; }
+  .modal::before { content:""; position: absolute; inset:0; background:#0008; backdrop-filter: blur(4px); }
+  .modal > .card {
+    position: relative; width: min(760px, 96vw); max-height: 85vh; overflow: auto;
+    background: var(--bg, #1c1c1c); color: var(--fg, #fafafa);
+    border: 1px solid #ffffff22; border-radius: 14px; padding: 14px;
+    box-shadow: 0 20px 60px #000a;
   }
-  .log-overlay header .btns { display: flex; gap: 8px; }
-  .log-overlay button {
-    background: #ffffff14; color: #fff; border-radius: 10px;
-    padding: 6px 10px; box-shadow: none; border: 1px solid #ffffff18;
+  .grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); }
+  .field { display: grid; gap: 6px; }
+  .field label { font-weight: 700; font-size: 13px; }
+  input[type="number"], input[type="range"] {
+    padding: 6px 8px; border-radius: 10px; border: 1px solid #8884; background: #ffffff08; color: inherit;
   }
-  .log-overlay main {
-    padding: 8px 10px; height: calc(60vh - 48px - 12px);
-    overflow: auto; font-family: ui-monospace, Menlo, Consolas, monospace;
-    font-size: 12px; line-height: 1.35;
-  }
-  .log-line { opacity: .92; }
-  .log-time { color: #9ad0ff; }
-  .log-info { color: #d6f5d6; }
-  .log-warn { color: #ffe59a; }
-  .log-err  { color: #ffb3b3; }
+  .pill-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); margin-top: 6px; }
+  .row { display:flex; gap:8px; align-items:center; }
+  .sep { height:1px; background:#ffffff22; margin:10px 0; }
 </style>
 </head>
 <body>
   <div class="wrap">
     <div class="controls">
-      <label>Pelotitas:
-        <input id="ballCount" type="number" value="3" min="1" max="50" step="1" />
-      </label>
-
-      <label>Píldoras máx.:
-        <input id="maxPills" type="number" value="20" min="0" step="1" />
-      </label>
-
-      <label>Frecuencia spawn:
-        <input id="spawnRate" type="range" min="25" max="300" value="250" step="5" />
-        <span id="spawnRateVal">250%</span>
-      </label>
-
-      <button id="toggleEdgeGrow">Rebote crece: OFF</button>
-
+      <button id="openConfig">CONFIG</button>
       <button id="start">INICIAR</button>
       <button id="pause" disabled>Pausar</button>
       <button id="reset">Reiniciar</button>
@@ -81,6 +71,7 @@
     <canvas id="game"></canvas>
   </div>
 
+  <!-- LOG overlay -->
   <div id="logOverlay" class="log-overlay" aria-hidden="true">
     <header>
       <span>Eventos</span>
@@ -92,66 +83,132 @@
     <main id="logBody" aria-live="polite"></main>
   </div>
 
+  <!-- CONFIG modal -->
+  <div id="configModal" class="modal" aria-hidden="true">
+    <div class="card">
+      <h3 style="margin:0 0 8px 0;">Configuración</h3>
+      <div class="grid">
+        <div class="field">
+          <label>Pelotitas (pre-game)</label>
+          <input id="ballCount" type="number" value="3" min="1" max="50" step="1" />
+        </div>
+        <div class="field">
+          <label>Píldoras máx.</label>
+          <input id="maxPills" type="number" value="20" min="0" step="1" />
+        </div>
+        <div class="field">
+          <label>Frecuencia spawn</label>
+          <div class="row">
+            <input id="spawnRate" type="range" min="25" max="300" value="250" step="5" />
+            <span id="spawnRateVal">250%</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Rebote crece</label>
+          <button id="toggleEdgeGrow">OFF</button>
+        </div>
+      </div>
+
+      <div class="sep"></div>
+      <div class="field">
+        <label>Pesos de aparición por píldora (0..∞, paso 5)</label>
+        <div class="pill-grid">
+          <div class="row"><span style="width:110px;">Azul (+nivel)</span><input id="wBlue" type="number" step="5" min="0" value="150"></div>
+          <div class="row"><span style="width:110px;">Roja (−nivel)</span><input id="wRed" type="number" step="5" min="0" value="20"></div>
+          <div class="row"><span style="width:110px;">Verde 2×</span><input id="wGreenFast" type="number" step="5" min="0" value="15"></div>
+          <div class="row"><span style="width:110px;">Verde 0.5×</span><input id="wGreenSlow" type="number" step="5" min="0" value="15"></div>
+          <div class="row"><span style="width:110px;">Celeste (escudo)</span><input id="wCyan" type="number" step="5" min="0" value="25"></div>
+          <div class="row"><span style="width:110px;">Amarilla (morph)</span><input id="wYellow" type="number" step="5" min="0" value="5"></div>
+          <div class="row"><span style="width:110px;">Blanca (fantasma)</span><input id="wWhite" type="number" step="5" min="0" value="10"></div>
+        </div>
+      </div>
+
+      <div class="sep"></div>
+      <div class="row" style="justify-content:flex-end;">
+        <button id="closeConfig">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
 <script>
 (() => {
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
 
-  // UI
-  const ballCountInput = document.getElementById('ballCount');
-  const maxPillsInput   = document.getElementById('maxPills');
-  const spawnRateInput  = document.getElementById('spawnRate');
-  const spawnRateVal    = document.getElementById('spawnRateVal');
-
+  // Buttons
+  const openConfigBtn = document.getElementById('openConfig');
   const startBtn = document.getElementById('start');
   const pauseBtn = document.getElementById('pause');
   const resetBtn = document.getElementById('reset');
-  const toggleEdgeGrowBtn = document.getElementById('toggleEdgeGrow');
 
+  // HUD/LOG
   const timeEl = document.getElementById('time');
   const scoreboardEl = document.getElementById('scoreboard');
-
   const logOverlay = document.getElementById('logOverlay');
   const logBody = document.getElementById('logBody');
   const toggleLogBtn = document.getElementById('toggleLog');
   const closeLogBtn = document.getElementById('closeLog');
   const clearLogBtn = document.getElementById('clearLog');
 
-  // Estado global
+  // CONFIG modal refs
+  const configModal = document.getElementById('configModal');
+  const closeConfigBtn = document.getElementById('closeConfig');
+  const ballCountInput = document.getElementById('ballCount');
+  const maxPillsInput = document.getElementById('maxPills');
+  const spawnRateInput = document.getElementById('spawnRate');
+  const spawnRateVal = document.getElementById('spawnRateVal');
+  const toggleEdgeGrowBtn = document.getElementById('toggleEdgeGrow');
+
+  const wBlue = document.getElementById('wBlue');
+  const wRed = document.getElementById('wRed');
+  const wGreenFast = document.getElementById('wGreenFast');
+  const wGreenSlow = document.getElementById('wGreenSlow');
+  const wCyan = document.getElementById('wCyan');
+  const wYellow = document.getElementById('wYellow');
+  const wWhite = document.getElementById('wWhite');
+
+  // State
   let state = 'idle'; // 'idle' | 'running' | 'ended'
   let paused = false, pauseStartMs = 0, pauseAccumMs = 0;
 
-  // Mundo & físicas
-  let R, baseSpeed, defaultSpeed; // defaultSpeed = baseSpeed * 2.25 (antes 1.5)
+  // World
+  let R, baseSpeed, defaultSpeed; // defaultSpeed = baseSpeed * 2.25
   let startTime = 0, elapsed = 0, rafId = null;
 
-  // Píldoras
+  // Pills
   const pills = [];
-  const PILL_RADIUS = 16; // rombos: radio de colisión
+  let PILL_RADIUS = 16; // rombos
   let nextSpawnAt = null;
-  let maxPills = 20;
   let spawnRatePct = 250;
+  let maxPills = 20;
 
-  // Pelotas
+  // Spawn weights (configurables)
+  const spawnWeights = {
+    blue: 150, red: 20, greenFast: 15, greenSlow: 15, cyanShield: 25, yellowMorph: 5, whiteGhost: 10
+  };
+
+  // Balls
   const balls = [];
   const LEVEL_START = 5;
   let ballCount = 3;
   const SPAWN_IMMUNITY_MS = 700;
-  let edgeGrowEnabled = false; // ahora arranca OFF
+  let edgeGrowEnabled = false; // default OFF
 
-  // Morph global (píldora amarilla)
-  let morphType = null;            // 'blue' | 'red' | 'greenFast' | 'greenSlow' | 'cyanShield'
+  // Ghost (white) effect
+  const GHOST_DURATION_MS = 5000;
+
+  // Morph (yellow) effect
+  let morphType = null; // type string
   let morphUntil = 0;
-  const MORPH_DURATION_MS = 8000;  // 8 segundos
+  const MORPH_DURATION_MS = 8000;
 
   // Logs
   const logs = [];
-  const LOG_MAX = 700;
+  const LOG_MAX = 800;
   function fmtTime(sec) { return sec.toFixed(2).padStart(5, '0'); }
   function addLog(msg, level = 'info') {
     const t = state === 'idle' ? 0 : Math.max(0, (performance.now() - startTime - pauseAccumMs) / 1000);
-    const line = { t, msg, level };
-    logs.push(line);
+    logs.push({ t, msg, level });
     if (logs.length > LOG_MAX) logs.shift();
     if (logOverlay.style.display === 'block') renderLogs();
   }
@@ -174,7 +231,7 @@
   function randomAngle() { return Math.random() * Math.PI * 2; }
   function scheduleNextSpawn(now = performance.now(), delayMs) {
     if (typeof delayMs === 'number') { nextSpawnAt = now + delayMs; return; }
-    const factor = 100 / spawnRatePct;
+    const factor = 100 / spawnRatePct; // 200% => mitad; 50% => doble
     const base = randomRange(1500, 4000);
     nextSpawnAt = now + base * factor;
   }
@@ -191,7 +248,7 @@
     }
   }
 
-  // % de crecimiento según nivel
+  // Growth table
   function pctForLevel(level) {
     if (level <= 0) return 0;
     if (level <= 10) return 25;
@@ -201,7 +258,6 @@
     return 5;
   }
 
-  // Crecer / Decrecer (con escudo)
   function applyGrowthStep(ball, source) {
     const prev = ball.level;
     ball.level++;
@@ -210,15 +266,6 @@
     addLog(`${ball.id} ${source}: nivel ${prev}→${ball.level} (+${pct}%)`);
     updateScoreboard();
   }
-  function tryShrink(ball, source) {
-    if (ball.shield) {
-      ball.shield = false;
-      addLog(`${ball.id}: ESCUDO bloqueó ${source}`, 'warn');
-      updateScoreboard();
-      return;
-    }
-    applyShrinkStep(ball, source);
-  }
   function applyShrinkStep(ball, source) {
     const prev = ball.level;
     const pct = pctForLevel(ball.level);
@@ -226,345 +273,249 @@
     ball.level--;
     addLog(`${ball.id} ${source}: nivel ${prev}→${ball.level} (−${pct}%)`);
     updateScoreboard();
-    if (ball.level <= 0) {
-      ball.alive = false;
-      addLog(`${ball.id} ha muerto (nivel 0).`, 'err');
-    }
+    if (ball.level <= 0) { ball.alive = false; addLog(`${ball.id} ha muerto (nivel 0).`, 'err'); }
+  }
+  function tryShrink(ball, source) {
+    if (ball.shield) { ball.shield = false; addLog(`${ball.id}: ESCUDO bloqueó ${source}`, 'warn'); updateScoreboard(); return; }
+    if (isGhost(ball, performance.now())) { addLog(`${ball.id}: fantasma ignora ${source}`, 'info'); return; }
+    applyShrinkStep(ball, source);
   }
 
-  // Velocidad (por pelota) y efectos
+  // Speed effects
   function effectiveSpeed(ball, nowMs) {
     if (ball.speedEffect !== 'none' && nowMs >= ball.speedEffectUntil) {
-      const prev = ball.speedEffect;
-      ball.speedEffect = 'none';
-      addLog(`${ball.id}: Fin efecto de velocidad (${prev})`, 'warn');
+      const prev = ball.speedEffect; ball.speedEffect = 'none'; addLog(`${ball.id}: Fin efecto de velocidad (${prev})`, 'warn');
     }
     if (ball.speedEffect === 'boost') return defaultSpeed * 2;
-    if (ball.speedEffect === 'slow')  return defaultSpeed * 0.5;
+    if (ball.speedEffect === 'slow') return defaultSpeed * 0.5;
     return defaultSpeed;
   }
   function setSpeedEffect(ball, type, nowMs) {
-    ball.speedEffect = type; // 'boost' | 'slow'
-    ball.speedEffectUntil = nowMs + 5000;
+    ball.speedEffect = type; ball.speedEffectUntil = nowMs + 5000;
     addLog(`${ball.id}: Efecto velocidad → ${type === 'boost' ? '2×' : '0.5×'} (5s)`, 'warn');
   }
   function applySpeedToVelocity(ball, targetSpeed) {
     const mag = Math.hypot(ball.vel.x, ball.vel.y);
-    if (mag > 0) {
-      const nx = ball.vel.x / mag, ny = ball.vel.y / mag;
-      ball.vel.x = nx * targetSpeed;
-      ball.vel.y = ny * targetSpeed;
-    }
+    if (mag > 0) { const nx = ball.vel.x / mag, ny = ball.vel.y / mag; ball.vel.x = nx * targetSpeed; ball.vel.y = ny * targetSpeed; }
   }
 
-  // Mundo
-  function resize() {
-    const dpr = Math.max(1, window.devicePixelRatio || 1);
-    const cssSize = Math.min(window.innerWidth * 0.96, 900);
-    canvas.width = Math.floor(cssSize * dpr);
-    canvas.height = Math.floor(cssSize * dpr);
-    ctx.setTransform(1,0,0,1,0,0);
-    ctx.scale(dpr, dpr);
-    ctx.translate(cssSize/2, cssSize/2);
-    R = (cssSize/2) - 10;
-    baseSpeed = R * 0.45;
-    defaultSpeed = baseSpeed * 2.25; // ← velocidad por defecto aumentada 1.5×
-    addLog('Canvas redimensionado', 'info');
+  // Ghost helpers
+  function isGhost(ball, nowMs) {
+    if (!ball.ghostUntil) return false;
+    if (nowMs >= ball.ghostUntil) { ball.ghostUntil = 0; addLog(`${ball.id}: Fin FANTASMA`, 'warn'); return false; }
+    return true;
+  }
+  function setGhost(ball, nowMs) {
+    ball.ghostUntil = nowMs + GHOST_DURATION_MS;
+    addLog(`${ball.id}: FANTASMA activado (5s)`, 'warn');
   }
 
-  function clampInputs() {
-    let n = Number(ballCountInput.value); if (!Number.isFinite(n)) n = 1;
-    ballCount = Math.max(1, Math.min(50, Math.floor(n)));
-    ballCountInput.value = String(ballCount);
-
-    let mp = Number(maxPillsInput.value); if (!Number.isFinite(mp)) mp = 20;
-    maxPills = Math.max(0, Math.floor(mp));
-    maxPillsInput.value = String(maxPills);
-
-    let sr = Number(spawnRateInput.value); if (!Number.isFinite(sr)) sr = 250;
-    spawnRatePct = Math.max(25, Math.min(300, Math.floor(sr)));
-    spawnRateInput.value = String(spawnRatePct);
-    spawnRateVal.textContent = `${spawnRatePct}%`;
-  }
-
-  function updateScoreboard() {
-    const items = balls
-      .filter(b => b.alive)
-      .map(b => {
-        const shield = b.shield ? ` <span style="color:#33cfff">🛡</span>` : '';
-        return `<span class="badge" style="color:${b.color}; border:1px solid ${b.color}">${b.id}: Nivel ${b.level}${shield}</span>`;
-      });
-    scoreboardEl.innerHTML = items.join('');
-  }
-
-  // ---- MORPH ----
+  // Morph helpers
   const PILL_NAMES = {
-    blue: 'azul',
-    red: 'roja',
-    greenFast: 'verde claro (2×)',
-    greenSlow: 'verde oscuro (0.5×)',
-    cyanShield: 'celeste (escudo)',
-    yellowMorph: 'amarilla (morph)',
+    blue: 'azul', red: 'roja', greenFast: 'verde claro (2×)', greenSlow: 'verde oscuro (0.5×)',
+    cyanShield: 'celeste (escudo)', yellowMorph: 'amarilla (morph)', whiteGhost: 'blanca (fantasma)'
   };
-  const MORPH_CHOICES = ['blue','red','greenFast','greenSlow','cyanShield']; // a esto se transforman
+  const MORPH_CHOICES = ['blue','red','greenFast','greenSlow','cyanShield','whiteGhost'];
   function startMorph(nowMs) {
     const pick = MORPH_CHOICES[Math.floor(Math.random() * MORPH_CHOICES.length)];
-    morphType = pick;
-    morphUntil = nowMs + MORPH_DURATION_MS;
-    // convertir EXISTENTES
-    for (const p of pills) { p.type = pick; p.name = PILL_NAMES[pick]; }
-    addLog(`Efecto AMARILLO: todas las píldoras → ${PILL_NAMES[pick]} por 8s`, 'warn');
+    morphType = pick; morphUntil = nowMs + MORPH_DURATION_MS;
+    // Guardar original y convertir existentes
+    for (const p of pills) {
+      if (p.originalType == null) p.originalType = p.type;
+      p.type = pick; p.name = PILL_NAMES[pick];
+    }
+    addLog(`AMARILLA: todas las píldoras se vuelven ${PILL_NAMES[pick]} por 8s`, 'warn');
   }
   function maybeEndMorph(nowMs) {
     if (morphType && nowMs >= morphUntil) {
+      // Revertir las que tengan originalType
+      for (const p of pills) {
+        if (p.originalType) { p.type = p.originalType; p.name = PILL_NAMES[p.originalType]; delete p.originalType; }
+      }
       addLog(`Fin efecto AMARILLO (morph)`, 'warn');
       morphType = null;
     }
   }
 
+  // World
+  function resize() {
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const cssSize = Math.min(window.innerWidth * 0.96, 900);
+    canvas.width = Math.floor(cssSize * dpr);
+    canvas.height = Math.floor(cssSize * dpr);
+    ctx.setTransform(1,0,0,1,0,0); ctx.scale(dpr, dpr); ctx.translate(cssSize/2, cssSize/2);
+    R = (cssSize/2) - 10;
+    baseSpeed = R * 0.45;
+    defaultSpeed = baseSpeed * 2.25; // velocidad por defecto (1.5× anterior)
+    addLog('Canvas redimensionado', 'info');
+  }
+
+  function clampInputs() {
+    let n = Number(ballCountInput.value); if (!Number.isFinite(n)) n = 3;
+    ballCount = Math.max(1, Math.min(50, Math.floor(n)));
+    ballCountInput.value = String(ballCount);
+
+    let mp = Number(maxPillsInput.value); if (!Number.isFinite(mp)) mp = 20;
+    maxPills = Math.max(0, Math.floor(mp)); maxPillsInput.value = String(maxPills);
+
+    let sr = Number(spawnRateInput.value); if (!Number.isFinite(sr)) sr = 250;
+    spawnRatePct = Math.max(25, Math.min(300, Math.floor(sr)));
+    spawnRateInput.value = String(spawnRatePct); spawnRateVal.textContent = `${spawnRatePct}%`;
+
+    // Pesos
+    spawnWeights.blue = Math.max(0, Math.floor(Number(wBlue.value)||0));
+    spawnWeights.red = Math.max(0, Math.floor(Number(wRed.value)||0));
+    spawnWeights.greenFast = Math.max(0, Math.floor(Number(wGreenFast.value)||0));
+    spawnWeights.greenSlow = Math.max(0, Math.floor(Number(wGreenSlow.value)||0));
+    spawnWeights.cyanShield = Math.max(0, Math.floor(Number(wCyan.value)||0));
+    spawnWeights.yellowMorph = Math.max(0, Math.floor(Number(wYellow.value)||0));
+    spawnWeights.whiteGhost = Math.max(0, Math.floor(Number(wWhite.value)||0));
+  }
+
+  function updateScoreboard() {
+    scoreboardEl.innerHTML = balls.filter(b => b.alive).map(b => {
+      const shield = b.shield ? ` <span style="color:#33cfff">🛡</span>` : '';
+      const ghost  = b.ghostUntil && performance.now() < b.ghostUntil ? ` <span style="color:#fff">👻</span>` : '';
+      return `<span class="badge" style="color:${b.color}; border:1px solid ${b.color}">${b.id}: Nivel ${b.level}${shield}${ghost}</span>`;
+    }).join('');
+  }
+
   function init() {
     paused = false; pauseAccumMs = 0; morphType = null; morphUntil = 0;
-    logs.length = 0;
-    resize();
-    clampInputs();
+    logs.length = 0; resize(); clampInputs();
 
-    // Crear pelotas (radio inicial 25) con colocación que evita overlap
-    balls.length = 0;
-    const R_INIT = 25;
+    // Balls (radio inicial 25) con separación
+    balls.length = 0; const R_INIT = 25;
     for (let i = 0; i < ballCount; i++) {
-      const id = `P${i+1}`;
-      const color = randomNonBlueRedColor();
+      const id = `P${i+1}`, color = randomNonBlueRedColor();
       let pos, tries=0;
       do {
-        const a = randomAngle();
-        const rr = 30 + Math.random()*60; // anillo inicial algo amplio
-        pos = { x: Math.cos(a) * rr, y: Math.sin(a) * rr };
-        tries++;
+        const a = randomAngle(); const rr = 30 + Math.random()*60;
+        pos = { x: Math.cos(a) * rr, y: Math.sin(a) * rr }; tries++;
       } while (tries < 100 && balls.some(b => Math.hypot(b.pos.x - pos.x, b.pos.y - pos.y) < (b.r + R_INIT + 8)));
-      const ball = {
-        id, color,
-        pos, vel: { x: 0, y: 0 },
-        r: R_INIT,                  // ← 25
-        level: LEVEL_START,
-        alive: true,
-        speedEffect: 'none',
-        speedEffectUntil: 0,
-        noCollideUntil: 0, // set al iniciar
-        shield: false,
-      };
-      balls.push(ball);
+      balls.push({
+        id, color, pos, vel:{x:0,y:0}, r:R_INIT, level:LEVEL_START, alive:true,
+        speedEffect:'none', speedEffectUntil:0, noCollideUntil:0, shield:false, ghostUntil:0
+      });
       addLog(`${id} listo (nivel ${LEVEL_START})`, 'info');
     }
 
-    // Reset pildoras y timers
-    pills.length = 0;
-    nextSpawnAt = null;
-
-    // UI
-    timeEl.textContent = '0.00';
-    state = 'idle';
-    startBtn.disabled = false;
-    pauseBtn.disabled = true;
-    pauseBtn.textContent = 'Pausar';
-    ballCountInput.disabled = false;
-    maxPillsInput.disabled = false;
-    spawnRateInput.disabled = false;
-    toggleEdgeGrowBtn.textContent = `Rebote crece: ${edgeGrowEnabled ? 'ON' : 'OFF'}`;
-
-    updateScoreboard();
-    addLog('Configura y pulsa INICIAR', 'info');
-    draw();
+    pills.length = 0; nextSpawnAt = null;
+    timeEl.textContent = '0.00'; state = 'idle';
+    startBtn.disabled = false; pauseBtn.disabled = true; pauseBtn.textContent = 'Pausar';
+    ballCountInput.disabled = false; // en modal
+    toggleEdgeGrowBtn.textContent = edgeGrowEnabled ? 'ON' : 'OFF';
+    updateScoreboard(); addLog('Abre CONFIG y pulsa INICIAR', 'info'); draw();
   }
 
   function startGame() {
-    startBtn.disabled = true;
-    pauseBtn.disabled = false;
-    ballCountInput.disabled = true;
-
+    startBtn.disabled = true; pauseBtn.disabled = false; ballCountInput.disabled = true;
     const now = performance.now();
     for (const b of balls) {
-      const a = randomAngle();
-      const v0 = effectiveSpeed(b, now);
-      b.vel.x = Math.cos(a) * v0;
-      b.vel.y = Math.sin(a) * v0;
-      b.noCollideUntil = now + SPAWN_IMMUNITY_MS;
+      const a = randomAngle(), v0 = effectiveSpeed(b, now);
+      b.vel.x = Math.cos(a) * v0; b.vel.y = Math.sin(a) * v0; b.noCollideUntil = now + SPAWN_IMMUNITY_MS;
     }
-
-    state = 'running';
-    startTime = performance.now();
-    addLog('Juego iniciado', 'info');
-    scheduleNextSpawn(startTime);
-    loop(startTime);
+    state = 'running'; startTime = performance.now(); addLog('Juego iniciado', 'info');
+    scheduleNextSpawn(startTime); loop(startTime);
   }
 
   function loop(prev) {
     rafId = requestAnimationFrame(now => {
-      let dt = (now - prev) / 1000;
-      if (dt > 0.05) dt = 0.05;
-      update(dt, now);
-      draw();
-      if (state !== 'ended') loop(now);
+      let dt = (now - prev) / 1000; if (dt > 0.05) dt = 0.05;
+      update(dt, now); draw(); if (state !== 'ended') loop(now);
     });
   }
 
   function checkWinConditions() {
     const alive = balls.filter(b => b.alive);
-    if (alive.length === 0) {
-      state = 'ended';
-      startBtn.disabled = false; pauseBtn.disabled = true;
-      addLog('Todas las pelotas murieron. Sin ganador.', 'warn');
-      return true;
-    }
-    for (const b of alive) {
-      if (b.r >= R - 0.5) {
-        state = 'ended';
-        startBtn.disabled = false; pauseBtn.disabled = true;
-        addLog(`${b.id} alcanzó 100% del tamaño. ¡Ganador!`, 'warn');
-        return true;
-      }
-    }
-    if (alive.length === 1) {
-      state = 'ended';
-      startBtn.disabled = false; pauseBtn.disabled = true;
-      addLog(`${alive[0].id} es el último con vida. ¡Ganador!`, 'warn');
-      return true;
-    }
+    if (alive.length === 0) { state = 'ended'; startBtn.disabled = false; pauseBtn.disabled = true; addLog('Todas las pelotas murieron. Sin ganador.', 'warn'); return true; }
+    for (const b of alive) { if (b.r >= R - 0.5) { state='ended'; startBtn.disabled=false; pauseBtn.disabled=true; addLog(`${b.id} alcanzó 100% del tamaño. ¡Ganador!`, 'warn'); return true; } }
+    if (alive.length === 1) { state='ended'; startBtn.disabled=false; pauseBtn.disabled=true; addLog(`${alive[0].id} es el último con vida. ¡Ganador!`, 'warn'); return true; }
     return false;
   }
 
   function update(dt, now) {
-    // Crono (no avanza en pausa)
-    if (state === 'running' && !paused) {
-      elapsed = (now - startTime - pauseAccumMs) / 1000;
-      timeEl.textContent = elapsed.toFixed(2);
-    }
+    if (state === 'running' && !paused) { elapsed = (now - startTime - pauseAccumMs) / 1000; timeEl.textContent = elapsed.toFixed(2); }
     if (state !== 'running' || paused) return;
 
-    // Fin de efectos cronometrados
     maybeEndMorph(now);
 
-    // Spawn de píldoras (límite)
+    // Spawn
     if (nextSpawnAt !== null && now >= nextSpawnAt) {
-      if (pills.length < maxPills) {
-        spawnRandomPill(now);
-        scheduleNextSpawn(now);
-      } else {
-        scheduleNextSpawn(now, 800);
-      }
+      if (pills.length < maxPills) { spawnRandomPill(now); scheduleNextSpawn(now); }
+      else { scheduleNextSpawn(now, 800); }
     }
 
-    // Actualizar pelotas
+    // Balls
     for (const b of balls) {
       if (!b.alive) continue;
+      const targetSpeed = effectiveSpeed(b, now); applySpeedToVelocity(b, targetSpeed);
+      b.pos.x += b.vel.x * dt; b.pos.y += b.vel.y * dt;
 
-      // Velocidad (efectos)
-      const targetSpeed = effectiveSpeed(b, now);
-      applySpeedToVelocity(b, targetSpeed);
-
-      // Mover
-      b.pos.x += b.vel.x * dt;
-      b.pos.y += b.vel.y * dt;
-
-      // Colisión con borde
+      // Borde
       let dist = Math.hypot(b.pos.x, b.pos.y);
-      let nx = dist === 0 ? 1 : b.pos.x / dist;
-      let ny = dist === 0 ? 0 : b.pos.y / dist;
-
-      const limit = R - b.r;
-      const EPS = 0.001;
-      const touching = dist >= (limit - EPS);
-      const movingOutward = (b.vel.x * nx + b.vel.y * ny) > 0;
+      let nx = dist === 0 ? 1 : b.pos.x / dist, ny = dist === 0 ? 0 : b.pos.y / dist;
+      const limit = R - b.r, EPS = 0.001;
+      const touching = dist >= (limit - EPS), movingOutward = (b.vel.x * nx + b.vel.y * ny) > 0;
 
       if (touching && movingOutward) {
-        b.pos.x = nx * limit;
-        b.pos.y = ny * limit;
-
-        if (edgeGrowEnabled) {
-          applyGrowthStep(b, 'Rebote');
-          if (checkWinConditions()) return;
-        }
-
-        // Nueva dirección aleatoria hacia adentro
-        let vx, vy;
-        do {
-          const a = randomAngle();
-          vx = Math.cos(a) * targetSpeed;
-          vy = Math.sin(a) * targetSpeed;
-        } while ((vx * nx + vy * ny) >= 0);
+        b.pos.x = nx * limit; b.pos.y = ny * limit;
+        if (edgeGrowEnabled) { applyGrowthStep(b, 'Rebote'); if (checkWinConditions()) return; }
+        // nueva dirección hacia adentro
+        let vx, vy; do { const a = randomAngle(); vx = Math.cos(a) * targetSpeed; vy = Math.sin(a) * targetSpeed; } while ((vx * nx + vy * ny) >= 0);
         b.vel.x = vx; b.vel.y = vy;
-
-        // Empujón hacia adentro
-        const newLimit = R - b.r;
-        const inset = Math.max(1, targetSpeed * dt);
-        const t = Math.max(0, newLimit - inset);
-        b.pos.x = nx * t;
-        b.pos.y = ny * t;
+        const newLimit = R - b.r, inset = Math.max(1, targetSpeed * dt), t = Math.max(0, newLimit - inset);
+        b.pos.x = nx * t; b.pos.y = ny * t;
       }
     }
 
-    // Colisiones pelota-pelota (con inmunidad)
+    // Colisiones entre pelotas (ignorar si alguna está fantasma)
     for (let i = 0; i < balls.length; i++) {
       const A = balls[i]; if (!A.alive) continue;
       for (let j = i+1; j < balls.length; j++) {
         const B = balls[j]; if (!B.alive) continue;
-
         if (now < A.noCollideUntil || now < B.noCollideUntil) continue;
+        if (isGhost(A, now) || isGhost(B, now)) continue;
 
-        const dx = B.pos.x - A.pos.x;
-        const dy = B.pos.y - A.pos.y;
-        const d = Math.hypot(dx, dy);
-        const minDist = A.r + B.r;
+        const dx = B.pos.x - A.pos.x, dy = B.pos.y - A.pos.y;
+        const d = Math.hypot(dx, dy), minDist = A.r + B.r;
         if (d > 0 && d <= minDist) {
-          const nx = dx / d, ny = dy / d;
-          const overlap = minDist - d + 0.5;
+          const nx = dx / d, ny = dy / d, overlap = minDist - d + 0.5;
           A.pos.x -= nx * overlap/2; A.pos.y -= ny * overlap/2;
           B.pos.x += nx * overlap/2; B.pos.y += ny * overlap/2;
-          const vaDot = A.vel.x*nx + A.vel.y*ny;
-          const vbDot = B.vel.x*nx + B.vel.y*ny;
+          const vaDot = A.vel.x*nx + A.vel.y*ny, vbDot = B.vel.x*nx + B.vel.y*ny;
           A.vel.x -= 2*vaDot*nx; A.vel.y -= 2*vaDot*ny;
           B.vel.x -= 2*vbDot*nx; B.vel.y -= 2*vbDot*ny;
 
-          tryShrink(A, `colisión con ${B.id}`);
-          tryShrink(B, `colisión con ${A.id}`);
-
+          tryShrink(A, `colisión con ${B.id}`); tryShrink(B, `colisión con ${A.id}`);
           if (checkWinConditions()) return;
         }
       }
     }
 
-    // Colisiones con píldoras (rombos; colisión por radio)
+    // Colisión con píldoras (rombos; usamos radio)
     for (let pi = pills.length - 1; pi >= 0; pi--) {
-      const p = pills[pi];
-      let consumed = false;
-
+      const p = pills[pi]; let consumed = false;
       for (const b of balls) {
         if (!b.alive) continue;
         const d = Math.hypot(b.pos.x - p.x, b.pos.y - p.y);
         if (d <= b.r + PILL_RADIUS) {
-          if (p.type === 'blue') {
-            applyGrowthStep(b, 'Píldora azul');
-            if (checkWinConditions()) return;
-          } else if (p.type === 'red') {
-            tryShrink(b, 'Píldora roja');
-            if (checkWinConditions()) return;
-          } else if (p.type === 'greenFast') {
-            setSpeedEffect(b, 'boost', now);
-          } else if (p.type === 'greenSlow') {
-            setSpeedEffect(b, 'slow', now);
-          } else if (p.type === 'cyanShield') {
-            if (b.shield) {
-              addLog(`${b.id}: ya tenía escudo (no acumulable).`, 'warn');
-            } else {
-              b.shield = true;
-              addLog(`${b.id}: obtuvo ESCUDO (1 uso).`, 'info');
-              updateScoreboard();
-            }
-          } else if (p.type === 'yellowMorph') {
-            startMorph(now);
+          // fantasma ignora roja
+          if (p.type === 'red' && isGhost(b, now)) continue;
+
+          if (p.type === 'blue') { applyGrowthStep(b, 'Píldora azul'); if (checkWinConditions()) return; }
+          else if (p.type === 'red') { tryShrink(b, 'Píldora roja'); if (checkWinConditions()) return; }
+          else if (p.type === 'greenFast') { setSpeedEffect(b, 'boost', now); }
+          else if (p.type === 'greenSlow') { setSpeedEffect(b, 'slow', now); }
+          else if (p.type === 'cyanShield') {
+            if (b.shield) addLog(`${b.id}: ya tenía escudo (no acumulable).`, 'warn');
+            else { b.shield = true; addLog(`${b.id}: obtuvo ESCUDO (1 uso).`, 'info'); updateScoreboard(); }
           }
+          else if (p.type === 'whiteGhost') { setGhost(b, now); updateScoreboard(); }
+          else if (p.type === 'yellowMorph') { startMorph(now); }
+
           addLog(`${b.id} consumió píldora ${p.name}.`);
-          consumed = true;
-          break;
+          consumed = true; break;
         }
       }
       if (consumed) pills.splice(pi, 1);
@@ -575,12 +526,8 @@
     const cssSize = Math.min(window.innerWidth * 0.96, 900);
     ctx.clearRect(-cssSize/2, -cssSize/2, cssSize, cssSize);
 
-    // Circunferencia grande
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = '#222';
-    ctx.beginPath();
-    ctx.arc(0, 0, R, 0, Math.PI * 2);
-    ctx.stroke();
+    // Borde grande
+    ctx.lineWidth = 4; ctx.strokeStyle = '#222'; ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2); ctx.stroke();
 
     // Píldoras (rombos)
     for (const p of pills) {
@@ -590,6 +537,7 @@
       else if (p.type === 'greenSlow') ctx.fillStyle = '#2E7D32';
       else if (p.type === 'cyanShield') ctx.fillStyle = '#33CFFF';
       else if (p.type === 'yellowMorph') ctx.fillStyle = '#FFD400';
+      else if (p.type === 'whiteGhost') { ctx.fillStyle = '#FFFFFF'; }
 
       ctx.beginPath();
       ctx.moveTo(p.x, p.y - PILL_RADIUS);
@@ -599,7 +547,11 @@
       ctx.closePath();
       ctx.fill();
 
-      // highlight
+      if (p.type === 'whiteGhost') { // dar contorno para que se vea
+        ctx.strokeStyle = '#bbbbbb'; ctx.lineWidth = 2; ctx.stroke();
+      }
+
+      // highlight sutil
       ctx.fillStyle = '#fff8';
       ctx.beginPath();
       ctx.moveTo(p.x, p.y - PILL_RADIUS/1.6);
@@ -612,120 +564,124 @@
     // Pelotas
     for (const b of balls) {
       if (!b.alive) continue;
-      ctx.fillStyle = b.color;
-      ctx.beginPath();
-      ctx.arc(b.pos.x, b.pos.y, b.r, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Escudo visual
-      if (b.shield) {
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = '#33CFFF';
-        ctx.beginPath();
-        ctx.arc(b.pos.x, b.pos.y, b.r + 2, 0, Math.PI * 2);
-        ctx.stroke();
+      ctx.fillStyle = b.color; ctx.beginPath(); ctx.arc(b.pos.x, b.pos.y, b.r, 0, Math.PI*2); ctx.fill();
+      if (b.shield) { ctx.lineWidth = 3; ctx.strokeStyle = '#33CFFF'; ctx.beginPath(); ctx.arc(b.pos.x, b.pos.y, b.r+2, 0, Math.PI*2); ctx.stroke(); }
+      if (b.ghostUntil && performance.now() < b.ghostUntil) {
+        ctx.lineWidth = 2; ctx.setLineDash([6,4]); ctx.strokeStyle = '#ffffffcc';
+        ctx.beginPath(); ctx.arc(b.pos.x, b.pos.y, b.r+5, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
       }
     }
 
     // Mensajes
-    ctx.fillStyle = '#333';
-    ctx.font = '14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    if (state === 'idle') ctx.fillText('Configura y haz click en INICIAR', 0, 0);
+    ctx.fillStyle = '#333'; ctx.font = '14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    if (state === 'idle') ctx.fillText('Abre CONFIG y haz click en INICIAR', 0, 0);
     if (state === 'ended') ctx.fillText('Juego terminado', 0, 0);
     if (paused && state === 'running') ctx.fillText('PAUSADO (P o Espacio)', 0, 0);
   }
 
-  // Pesos actualizados: azul 150, roja 20, verdeC 15, verdeO 15, celeste 25, amarilla 25
   function spawnRandomPill(now=performance.now()) {
-    const weights = [
-      {type:'blue',       name:PILL_NAMES.blue,       w:150},
-      {type:'red',        name:PILL_NAMES.red,        w:20},
-      {type:'greenFast',  name:PILL_NAMES.greenFast,  w:15},
-      {type:'greenSlow',  name:PILL_NAMES.greenSlow,  w:15},
-      {type:'cyanShield', name:PILL_NAMES.cyanShield, w:25},
-      {type:'yellowMorph',name:PILL_NAMES.yellowMorph,w:25},
-    ];
-    let pick;
-    if (morphType) {
-      // Mientras dure el morph, TODO spawnea de ese tipo
-      pick = { type: morphType, name: PILL_NAMES[morphType] };
-    } else {
-      const total = weights.reduce((s,o)=>s+o.w,0);
-      let r = Math.random()*total;
-      for (const o of weights) { r -= o.w; if (r <= 0) { pick = o; break; } }
-    }
+    // Elegimos el "intended" (para poder revertir tras morph)
+    const entries = [
+      ['blue', spawnWeights.blue],
+      ['red', spawnWeights.red],
+      ['greenFast', spawnWeights.greenFast],
+      ['greenSlow', spawnWeights.greenSlow],
+      ['cyanShield', spawnWeights.cyanShield],
+      ['yellowMorph', spawnWeights.yellowMorph],
+      ['whiteGhost', spawnWeights.whiteGhost],
+    ].filter(([,w]) => w > 0);
 
-    const maxR = R - PILL_RADIUS - 4;
-    let x=0, y=0;
+    // Si no hay pesos >0, no spawneamos
+    if (!entries.length) { scheduleNextSpawn(now, 1200); return; }
+
+    const total = entries.reduce((s, [,w]) => s + w, 0);
+    let r = Math.random() * total, intended = entries[0][0];
+    for (const [type, w] of entries) { r -= w; if (r <= 0) { intended = type; break; } }
+
+    // Tipo final (morph activo fuerza uno), pero guardamos originalType para revertir
+    let finalType = intended, storeOriginal = null;
+    if (morphType) { storeOriginal = intended; finalType = morphType; }
+
+    const maxR = R - PILL_RADIUS - 4; let x=0, y=0;
     for (let tries = 0; tries < 25; tries++) {
-      const a = randomAngle();
-      const rr = Math.sqrt(Math.random()) * maxR;
-      x = Math.cos(a) * rr;
-      y = Math.sin(a) * rr;
+      const a = randomAngle(); const rr = Math.sqrt(Math.random()) * maxR;
+      x = Math.cos(a) * rr; y = Math.sin(a) * rr;
       let ok = true;
-      for (const b of balls) {
-        if (!b.alive) continue;
-        if (Math.hypot(x - b.pos.x, y - b.pos.y) <= b.r + PILL_RADIUS + 12) { ok = false; break; }
-      }
+      for (const b of balls) { if (!b.alive) continue; if (Math.hypot(x-b.pos.x,y-b.pos.y) <= b.r + PILL_RADIUS + 12) { ok=false; break; } }
       if (ok) break;
     }
-    pills.push({ x, y, type: pick.type, name: pick.name });
-    addLog(`Spawn píldora ${pick.name} en (${x.toFixed(0)},${y.toFixed(0)})`, 'info');
+    const p = { x, y, type: finalType, name: PILL_NAMES[finalType] };
+    if (storeOriginal) p.originalType = storeOriginal;
+    pills.push(p);
+    addLog(`Spawn píldora ${p.name} en (${x.toFixed(0)},${y.toFixed(0)})`, 'info');
   }
 
-  // Pausa / reanudar
+  // Pause
   function togglePause() {
     if (state !== 'running') return;
     paused = !paused;
-    if (paused) {
-      pauseStartMs = performance.now();
-      pauseBtn.textContent = 'Reanudar';
-      addLog('Pausa', 'warn');
-    } else {
-      const delta = performance.now() - pauseStartMs;
-      pauseAccumMs += delta;
-      pauseStartMs = 0;
+    if (paused) { pauseStartMs = performance.now(); pauseBtn.textContent = 'Reanudar'; addLog('Pausa', 'warn'); }
+    else {
+      const delta = performance.now() - pauseStartMs; pauseAccumMs += delta; pauseStartMs = 0;
       pauseBtn.textContent = 'Pausar';
       if (nextSpawnAt !== null) nextSpawnAt += delta;
       for (const b of balls) {
         if (b.speedEffect !== 'none') b.speedEffectUntil += delta;
         if (b.noCollideUntil > performance.now()) b.noCollideUntil += delta;
+        if (b.ghostUntil && b.ghostUntil > performance.now()) b.ghostUntil += delta;
       }
-      if (morphType) morphUntil += delta; // extender morph por pausa
+      if (morphType) morphUntil += delta;
       addLog('Reanudar', 'warn');
     }
   }
 
-  // Eventos UI
-  startBtn.addEventListener('click', () => { if (state === 'idle') startGame(); });
-  resetBtn.addEventListener('click', () => { cancelAnimationFrame(rafId); init(); });
-  pauseBtn.addEventListener('click', togglePause);
+  // CONFIG modal logic
+  function openConfig() {
+    // sync UI con estado
+    wBlue.value = spawnWeights.blue; wRed.value = spawnWeights.red;
+    wGreenFast.value = spawnWeights.greenFast; wGreenSlow.value = spawnWeights.greenSlow;
+    wCyan.value = spawnWeights.cyanShield; wYellow.value = spawnWeights.yellowMorph; wWhite.value = spawnWeights.whiteGhost;
+    spawnRateInput.value = spawnRatePct; spawnRateVal.textContent = `${spawnRatePct}%`;
+    maxPillsInput.value = maxPills; ballCountInput.value = ballCount;
+    toggleEdgeGrowBtn.textContent = edgeGrowEnabled ? 'ON' : 'OFF';
+    configModal.classList.add('show'); configModal.setAttribute('aria-hidden','false');
+  }
+  function closeConfig() { configModal.classList.remove('show'); configModal.setAttribute('aria-hidden','true'); }
 
-  ballCountInput.addEventListener('change', () => { if (state==='idle') clampInputs(); });
+  // Events
+  openConfigBtn.addEventListener('click', openConfig);
+  closeConfigBtn.addEventListener('click', () => { clampInputs(); closeConfig(); addLog('CONFIG aplicada', 'info'); });
+  spawnRateInput.addEventListener('input', () => { clampInputs(); });
   maxPillsInput.addEventListener('change', () => { clampInputs(); addLog(`Límite píldoras → ${maxPills}`, 'info'); });
-  spawnRateInput.addEventListener('input', () => { clampInputs(); addLog(`Frecuencia spawn → ${spawnRatePct}%`, 'info'); });
-
+  [wBlue,wRed,wGreenFast,wGreenSlow,wCyan,wYellow,wWhite].forEach(inp => {
+    inp.addEventListener('change', () => { clampInputs(); addLog('Pesos de aparición actualizados', 'info'); });
+  });
+  ballCountInput.addEventListener('change', () => { if (state==='idle') clampInputs(); else ballCountInput.value = ballCount; });
   toggleEdgeGrowBtn.addEventListener('click', () => {
-    edgeGrowEnabled = !edgeGrowEnabled;
-    toggleEdgeGrowBtn.textContent = `Rebote crece: ${edgeGrowEnabled ? 'ON' : 'OFF'}`;
+    edgeGrowEnabled = !edgeGrowEnabled; toggleEdgeGrowBtn.textContent = edgeGrowEnabled ? 'ON' : 'OFF';
     addLog(`Crecimiento por rebote en borde: ${edgeGrowEnabled ? 'ON' : 'OFF'}`, 'info');
   });
 
+  startBtn.addEventListener('click', () => { if (state === 'idle') { closeConfig(); startGame(); } });
+  resetBtn.addEventListener('click', () => { cancelAnimationFrame(rafId); init(); });
+  pauseBtn.addEventListener('click', togglePause);
+
   window.addEventListener('resize', () => { init(); });
 
-  // Logs UI
-  toggleLogBtn.addEventListener('click', toggleLogs);
-  closeLogBtn.addEventListener('click', toggleLogs);
-  clearLogBtn.addEventListener('click', () => { logs.length = 0; renderLogs(); });
+  // Logs UI (usa la renderLogs() ya declarada arriba)
+clearLogBtn.addEventListener('click', () => { 
+  logs.length = 0; 
+  renderLogs(); 
+});
+toggleLogBtn.addEventListener('click', toggleLogs);
+closeLogBtn.addEventListener('click', toggleLogs);
 
-  // Hotkeys: P o Espacio para pausa
+
+  // Hotkeys: P o Espacio para pausa, ESC para cerrar CONFIG
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'p' || e.key === 'P' || e.code === 'Space' || e.key === ' ') {
-      e.preventDefault();
-      togglePause();
-    }
+    if (e.key === 'p' || e.key === 'P' || e.code === 'Space' || e.key === ' ') { e.preventDefault(); togglePause(); }
+    if (e.key === 'Escape' && configModal.classList.contains('show')) { closeConfig(); }
   });
 
   // Boot
