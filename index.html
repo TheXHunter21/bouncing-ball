@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bola dentro de circunferencia — crecimiento por fases</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { margin: 0; font-family: system-ui, Segoe UI, Roboto, sans-serif; display: grid; place-items: center; min-height: 100dvh; gap: 12px; }
+  .wrap { display: grid; gap: 10px; width: min(720px, 95vw); }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  label { display: inline-flex; align-items: center; gap: 6px; }
+  select { padding: 6px 8px; border-radius: 10px; border: 1px solid #8884; }
+  button { padding: 8px 14px; border: 0; border-radius: 12px; cursor: pointer; box-shadow: 0 2px 10px #0002; }
+  button:disabled, select:disabled { opacity: 0.6; cursor: not-allowed; }
+  .hud { font-weight: 600; }
+  canvas { width: 100%; aspect-ratio: 1 / 1; background: conic-gradient(from 180deg at 50% 50%, #fff0, #fff0); border-radius: 16px; box-shadow: inset 0 0 0 1px #0002; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="controls">
+      <label>Velocidad:
+        <select id="speedSel">
+          <option value="0.5">x0.5</option>
+          <option value="1" selected>x1</option>
+          <option value="1.5">x1.5</option>
+          <option value="2">x2</option>
+          <option value="3">x3</option>
+        </select>
+      </label>
+      <button id="start">INICIAR</button>
+      <button id="reset">Reiniciar</button>
+      <div class="hud">
+        Rebotes: <span id="bounces">0</span> ·
+        Tiempo: <span id="time">0.00</span>s ·
+        Tamaño: <span id="sizePct">0.0</span>%
+      </div>
+    </div>
+    <canvas id="game"></canvas>
+  </div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+
+  const speedSel = document.getElementById('speedSel');
+  const startBtn = document.getElementById('start');
+  const resetBtn = document.getElementById('reset');
+  const bouncesEl = document.getElementById('bounces');
+  const timeEl = document.getElementById('time');
+  const sizePctEl = document.getElementById('sizePct');
+
+  let state = 'idle'; // 'idle' | 'running' | 'ended'
+  let R, r, pos, vel, baseSpeed, speedMul, speed, color;
+  let bounces = 0, startTime = 0, elapsed = 0, rafId = null;
+
+  // Crecimiento por fases
+  // 25% (5 veces) -> 20% (5) -> 15% (5) -> 10% (5) -> 5% (∞)
+  let growthPct, growthUsesLeft;
+
+  function resetGrowthSchedule() {
+    growthPct = 25;
+    growthUsesLeft = 5;
+  }
+
+  function applyGrowth() {
+    // Aumenta según growthPct actual
+    r = Math.min(R, r * (1 + growthPct / 100));
+    // Consumir un uso de esta fase
+    if (growthUsesLeft > 0) growthUsesLeft--;
+    // Si se agotaron los 5 usos y aún podemos bajar el factor, bajar 5% y resetear a 5 usos
+    if (growthUsesLeft === 0 && growthPct > 5) {
+      growthPct = Math.max(5, growthPct - 5);
+      growthUsesLeft = (growthPct === 5) ? Infinity : 5; // a 5% se queda para siempre
+    }
+  }
+
+  function resize() {
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const cssSize = Math.min(window.innerWidth * 0.95, 720);
+    canvas.width = Math.floor(cssSize * dpr);
+    canvas.height = Math.floor(cssSize * dpr);
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.scale(dpr, dpr);
+    ctx.translate(cssSize/2, cssSize/2);
+    R = (cssSize/2) - 10;
+    baseSpeed = R * 0.45; // px/seg a x1
+    updateSpeedFromUI();
+  }
+
+  function updateSpeedFromUI() {
+    speedMul = Number(speedSel.value) || 1;
+    speed = baseSpeed * speedMul;
+  }
+
+  function randomColor() {
+    const h = Math.floor(Math.random() * 360);
+    const s = 70 + Math.random() * 20;
+    const l = 55 + Math.random() * 15;
+    return `hsl(${h} ${s}% ${l}%)`;
+  }
+
+  function updateSizeHud() {
+    const pct = (r / R) * 100;
+    sizePctEl.textContent = pct.toFixed(1);
+  }
+
+  function init() {
+    resize();
+    r = 10;
+    pos = { x: 0, y: 0 };
+    vel = { x: 0, y: 0 };
+    bounces = 0;
+    elapsed = 0;
+    color = randomColor();
+    resetGrowthSchedule();
+    bouncesEl.textContent = '0';
+    timeEl.textContent = '0.00';
+    updateSizeHud();
+    state = 'idle';
+    speedSel.disabled = false;
+    startBtn.disabled = false;
+    draw();
+  }
+
+  function startGame() {
+    // bloquear UI de velocidad durante la partida
+    speedSel.disabled = true;
+    startBtn.disabled = true;
+
+    // Dirección aleatoria inicial
+    const a = Math.random() * Math.PI * 2;
+    vel.x = Math.cos(a) * speed;
+    vel.y = Math.sin(a) * speed;
+
+    state = 'running';
+    startTime = performance.now();
+    loop(startTime);
+  }
+
+  function loop(prev) {
+    rafId = requestAnimationFrame(now => {
+      let dt = (now - prev) / 1000;
+      if (dt > 0.05) dt = 0.05; // evita saltos grandes
+      update(dt);
+      draw();
+      if (state === 'running') loop(now);
+    });
+  }
+
+  function update(dt) {
+    if (state !== 'running') return;
+    elapsed = (performance.now() - startTime) / 1000;
+    timeEl.textContent = elapsed.toFixed(2);
+
+    // Mover
+    pos.x += vel.x * dt;
+    pos.y += vel.y * dt;
+
+    // Colisión con borde (con tolerancia + anti rebote fantasma)
+    let dist = Math.hypot(pos.x, pos.y);
+    let nx = dist === 0 ? 1 : pos.x / dist; // normal hacia afuera
+    let ny = dist === 0 ? 0 : pos.y / dist;
+
+    const limit = R - r;
+    const EPS = 0.001;
+    const touching = dist >= (limit - EPS);
+    const movingOutward = (vel.x * nx + vel.y * ny) > 0; // solo colisiona si iba saliendo
+
+    if (touching && movingOutward) {
+      // Colocar exactamente en el borde actual
+      pos.x = nx * limit;
+      pos.y = ny * limit;
+
+      // Efectos de rebote
+      bounces += 1;
+      bouncesEl.textContent = String(bounces);
+      color = randomColor();
+
+      // Crecer por la función de fases
+      applyGrowth();
+      updateSizeHud();
+
+      // ¿Fin del juego?
+      if (r >= R - 0.5) {
+        state = 'ended';
+        speedSel.disabled = false;
+        startBtn.disabled = false;
+        cancelAnimationFrame(rafId);
+        return;
+      }
+
+      // Nueva dirección aleatoria HACIA ADENTRO (vel · normal < 0)
+      let vx, vy;
+      do {
+        const a = Math.random() * Math.PI * 2;
+        vx = Math.cos(a) * speed;
+        vy = Math.sin(a) * speed;
+      } while ((vx * nx + vy * ny) >= 0);
+
+      vel.x = vx;
+      vel.y = vy;
+
+      // Empujón hacia adentro tras crecer (evita doble colisión inmediata)
+      const newLimit = R - r;
+      const inset = Math.max(1, speed * dt); // al menos 1px o un paso de movimiento
+      const target = Math.max(0, newLimit - inset);
+      pos.x = nx * target;
+      pos.y = ny * target;
+
+      // (Opcional) limpiar normal
+      dist = Math.hypot(pos.x, pos.y);
+      nx = dist === 0 ? 1 : pos.x / dist;
+      ny = dist === 0 ? 0 : pos.y / dist;
+    }
+  }
+
+  function draw() {
+    const cssSize = Math.min(window.innerWidth * 0.95, 720);
+    ctx.clearRect(-cssSize/2, -cssSize/2, cssSize, cssSize);
+
+    // Circunferencia grande
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#222';
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Pelota
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Mensaje
+    ctx.fillStyle = '#333';
+    ctx.font = '14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    if (state === 'idle') ctx.fillText('Haz click en INICIAR', 0, 0);
+    if (state === 'ended') ctx.fillText('¡Fin! Alcanzaste el 100%', 0, 0);
+  }
+
+  // Eventos
+  startBtn.addEventListener('click', () => { if (state === 'idle') startGame(); });
+  resetBtn.addEventListener('click', () => { cancelAnimationFrame(rafId); init(); });
+  speedSel.addEventListener('change', () => { if (state === 'idle') { updateSpeedFromUI(); } });
+  window.addEventListener('resize', () => { init(); });
+
+  // Boot
+  init();
+})();
+</script>
+</body>
+</html>
