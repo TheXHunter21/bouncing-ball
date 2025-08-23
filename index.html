@@ -3,41 +3,82 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Bola + Píldoras (crecimiento por fases)</title>
+<title>Bola + Píldoras + Pausa</title>
 <style>
   :root { color-scheme: light dark; }
   body { margin: 0; font-family: system-ui, Segoe UI, Roboto, sans-serif; display: grid; place-items: center; min-height: 100dvh; gap: 12px; }
   .wrap { display: grid; gap: 10px; width: min(720px, 95vw); }
   .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
   label { display: inline-flex; align-items: center; gap: 6px; }
-  select { padding: 6px 8px; border-radius: 10px; border: 1px solid #8884; }
+  input[type="number"] { padding: 6px 8px; border-radius: 10px; border: 1px solid #8884; width: 100px; }
   button { padding: 8px 14px; border: 0; border-radius: 12px; cursor: pointer; box-shadow: 0 2px 10px #0002; }
-  button:disabled, select:disabled { opacity: 0.6; cursor: not-allowed; }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
   .hud { font-weight: 600; }
   canvas { width: 100%; aspect-ratio: 1 / 1; background: conic-gradient(from 180deg at 50% 50%, #fff0, #fff0); border-radius: 16px; box-shadow: inset 0 0 0 1px #0002; }
+
+  /* Overlay de logs */
+  .log-toggle { margin-left: auto; }
+  .log-overlay {
+    position: fixed; inset: 16px 16px auto auto;
+    width: min(360px, 90vw); height: 55vh;
+    background: rgba(20,20,20,.85); color: #fafafa;
+    border: 1px solid #ffffff20; border-radius: 12px;
+    box-shadow: 0 10px 30px #0008; z-index: 9999; display: none;
+    backdrop-filter: blur(6px);
+  }
+  .log-overlay header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 10px; border-bottom: 1px solid #ffffff22; font-weight: 700;
+  }
+  .log-overlay header .btns { display: flex; gap: 8px; }
+  .log-overlay button {
+    background: #ffffff14; color: #fff; border-radius: 10px;
+    padding: 6px 10px; box-shadow: none; border: 1px solid #ffffff18;
+  }
+  .log-overlay main {
+    padding: 8px 10px; height: calc(55vh - 48px - 12px);
+    overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px; line-height: 1.35;
+  }
+  .log-line { opacity: .92; }
+  .log-time { color: #9ad0ff; }
+  .log-info { color: #d6f5d6; }
+  .log-warn { color: #ffe59a; }
+  .log-err  { color: #ffb3b3; }
 </style>
 </head>
 <body>
   <div class="wrap">
     <div class="controls">
-      <label>Velocidad:
-        <select id="speedSel">
-          <option value="0.5">x0.5</option>
-          <option value="1" selected>x1</option>
-          <option value="1.5">x1.5</option>
-          <option value="2">x2</option>
-          <option value="3">x3</option>
-        </select>
+      <label>Píldoras máx.:
+        <input id="maxPills" type="number" value="3" min="0" step="1" />
       </label>
+
       <button id="start">INICIAR</button>
+      <button id="pause" disabled>Pausar</button>
       <button id="reset">Reiniciar</button>
+      <button id="toggleLog" class="log-toggle">Logs</button>
+
       <div class="hud">
         Tiempo: <span id="time">0.00</span>s ·
         Crecimientos: <span id="sizeSteps">1</span> ·
         Fase: <span id="phasePct">25%</span>
       </div>
     </div>
+
     <canvas id="game"></canvas>
+  </div>
+
+  <!-- Overlay logs -->
+  <div id="logOverlay" class="log-overlay" aria-hidden="true">
+    <header>
+      <span>Eventos</span>
+      <div class="btns">
+        <button id="clearLog">Limpiar</button>
+        <button id="closeLog" title="Cerrar">✕</button>
+      </div>
+    </header>
+    <main id="logBody" aria-live="polite"></main>
   </div>
 
 <script>
@@ -45,34 +86,78 @@
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
 
-  const speedSel = document.getElementById('speedSel');
+  const maxPillsInput = document.getElementById('maxPills');
   const startBtn = document.getElementById('start');
+  const pauseBtn = document.getElementById('pause');
   const resetBtn = document.getElementById('reset');
   const timeEl = document.getElementById('time');
   const sizeStepsEl = document.getElementById('sizeSteps');
   const phasePctEl = document.getElementById('phasePct');
 
+  const logOverlay = document.getElementById('logOverlay');
+  const logBody = document.getElementById('logBody');
+  const toggleLogBtn = document.getElementById('toggleLog');
+  const closeLogBtn = document.getElementById('closeLog');
+  const clearLogBtn = document.getElementById('clearLog');
+
+  // Estado
   let state = 'idle'; // 'idle' | 'running' | 'ended'
-  let R, r, pos, vel, baseSpeed, speedMul, speed, ballColor;
+  let paused = false;
+  let pauseStartMs = 0;
+  let pauseAccumMs = 0;
+
+  // Mundo y físicas
+  let R, r, pos, vel;
+  let baseSpeed, defaultSpeed;   // baseSpeed depende del canvas; default = baseSpeed * 1.5
   let sizeSteps = 1, startTime = 0, elapsed = 0, rafId = null;
 
   // Crecimiento por fases: 25% (x5) -> 20% (x5) -> 15% (x5) -> 10% (x5) -> 5% (∞)
-  let growthPct, growthUsesLeft; // pct de la fase actual y usos restantes en la fase
+  let growthPct, growthUsesLeft;
 
-  // Píldoras
+  // Píldoras (azul/roja y verdes de velocidad)
   const pills = [];
   const PILL_RADIUS = 8;
-  let nextSpawnAt = null; // timestamp (performance.now) para siguiente spawn
+  let nextSpawnAt = null;
+  let maxPills = 3;
 
+  // Efecto de velocidad (boost o slow) por 5 s (no corre en pausa)
+  let speedEffect = 'none'; // 'none' | 'boost' | 'slow'
+  let speedEffectUntil = 0; // timestamp ms
+
+  // Logs
+  const logs = [];
+  const LOG_MAX = 200;
+  function fmtTime(sec) { return sec.toFixed(2).padStart(5, '0'); }
+  function addLog(msg, level = 'info') {
+    const t = state === 'idle' ? 0 : Math.max(0, (performance.now() - startTime - pauseAccumMs) / 1000);
+    const line = { t, msg, level };
+    logs.push(line);
+    if (logs.length > LOG_MAX) logs.shift();
+    if (logOverlay.style.display === 'block') renderLogs();
+  }
+  function renderLogs() {
+    logBody.innerHTML = logs.map(l => {
+      const cls = l.level === 'warn' ? 'log-warn' : l.level === 'err' ? 'log-err' : 'log-info';
+      return `<div class="log-line"><span class="log-time">[${fmtTime(l.t)}]</span> <span class="${cls}">${l.msg}</span></div>`;
+    }).join('');
+    logBody.scrollTop = logBody.scrollHeight;
+  }
+  function toggleLogs() {
+    const show = logOverlay.style.display !== 'block';
+    logOverlay.style.display = show ? 'block' : 'none';
+    logOverlay.setAttribute('aria-hidden', show ? 'false' : 'true');
+    if (show) renderLogs();
+  }
+
+  // Helpers
   function randomRange(a, b) { return a + Math.random() * (b - a); }
 
-  function scheduleNextSpawn(now = performance.now()) {
-    // Próximo spawn entre 1.5s y 4s desde ahora
+  function scheduleNextSpawn(now = performance.now(), delayMs) {
+    if (typeof delayMs === 'number') { nextSpawnAt = now + delayMs; return; }
     nextSpawnAt = now + randomRange(1500, 4000);
   }
 
   function randomNonBlueRedColor() {
-    // Evitar rojos (~[-15,15]) y azules (~[200,260]) en hue
     while (true) {
       const h = Math.floor(Math.random() * 360);
       const redZone = (h <= 15 || h >= 345);
@@ -88,37 +173,37 @@
   function resetGrowthSchedule() {
     growthPct = 25;
     growthUsesLeft = 5;
-    updatePhaseHud();
-  }
-  function updatePhaseHud() {
     phasePctEl.textContent = `${growthPct}%`;
   }
-  function currentShrinkPct() {
-    // pct de la fase anterior (ej.: si actual=20 → shrink=25; si actual=5 → shrink=10)
-    // Nota: en 25% la "anterior" también la tratamos como 25%.
-    return Math.min(25, growthPct + 5);
-  }
-
-  function applyGrowthStep() {
-    // Crece según la fase actual
-    r = Math.min(R, r * (1 + growthPct / 100));
-    // Avanza la fase (consumimos un uso) porque esto cuenta como un "crecimiento"
-    if (growthUsesLeft > 0) growthUsesLeft--;
-    if (growthUsesLeft === 0 && growthPct > 5) {
+  function maybeAdvancePhase() {
+    if (growthUsesLeft > 0) return;
+    if (growthPct > 5) {
       growthPct = Math.max(5, growthPct - 5);
       growthUsesLeft = (growthPct === 5) ? Infinity : 5;
-      updatePhaseHud();
+      phasePctEl.textContent = `${growthPct}%`;
+      addLog(`Fase de crecimiento → ${growthPct}%`, 'warn');
     }
-    sizeSteps++; // contador de crecimientos (+1)
-    sizeStepsEl.textContent = String(sizeSteps);
+  }
+  function currentShrinkPct() {
+    return Math.min(25, growthPct + 5); // “fase anterior”
   }
 
-  function applyShrinkStep() {
-    // Decrece usando la fase ANTERIOR, para volver a un tamaño "previo"
-    const prevPct = currentShrinkPct();
-    r = Math.max(2, r / (1 + prevPct / 100)); // inverso multiplicativo (ej. /1.25)
-    sizeSteps--; // contador de crecimientos (-1)
+  function applyGrowthStep(source) {
+    const pct = growthPct;
+    r = Math.min(R, r * (1 + pct / 100));
+    if (growthUsesLeft !== Infinity && growthUsesLeft > 0) growthUsesLeft--;
+    maybeAdvancePhase();
+    sizeSteps++;
     sizeStepsEl.textContent = String(sizeSteps);
+    addLog(`${source}: +${pct}% (tamaño = ${(r/R*100).toFixed(1)}%)`);
+  }
+
+  function applyShrinkStep(source) {
+    const prevPct = currentShrinkPct();
+    r = Math.max(2, r / (1 + prevPct / 100)); // inverso exacto
+    sizeSteps--;
+    sizeStepsEl.textContent = String(sizeSteps);
+    addLog(`${source}: -${prevPct}% (tamaño = ${(r/R*100).toFixed(1)}%)`);
   }
 
   function resize() {
@@ -130,45 +215,89 @@
     ctx.scale(dpr, dpr);
     ctx.translate(cssSize/2, cssSize/2);
     R = (cssSize/2) - 10;
-    baseSpeed = R * 0.45; // px/seg a x1
-    updateSpeedFromUI();
+    baseSpeed = R * 0.45;
+    defaultSpeed = baseSpeed * 1.5; // ← velocidad por defecto (antes x1.5)
+    addLog('Canvas redimensionado', 'info');
   }
 
-  function updateSpeedFromUI() {
-    speedMul = Number(speedSel.value) || 1;
-    speed = baseSpeed * speedMul;
+  function effectiveSpeed(nowMs) {
+    if (speedEffect !== 'none' && nowMs >= speedEffectUntil) {
+      // expiró el efecto
+      const prev = speedEffect;
+      speedEffect = 'none';
+      addLog(`Fin efecto de velocidad (${prev})`, 'warn');
+    }
+    if (speedEffect === 'boost') return defaultSpeed * 2;
+    if (speedEffect === 'slow')  return defaultSpeed * 0.5;
+    return defaultSpeed;
+  }
+
+  function setSpeedEffect(type, nowMs) {
+    speedEffect = type; // 'boost' o 'slow'
+    speedEffectUntil = nowMs + 5000; // 5 s
+    addLog(type === 'boost' ? 'Efecto: 2× vel (5s)' : 'Efecto: 0.5× vel (5s)', 'warn');
+  }
+
+  function applySpeedToVelocity(targetSpeed) {
+    const mag = Math.hypot(vel.x, vel.y);
+    if (mag > 0) {
+      const nx = vel.x / mag, ny = vel.y / mag;
+      vel.x = nx * targetSpeed;
+      vel.y = ny * targetSpeed;
+    } // si está quieto (antes de iniciar), no hace nada
+  }
+
+  function clampMaxPills() {
+    let v = Number(maxPillsInput.value);
+    if (!Number.isFinite(v)) v = 3;
+    v = Math.max(0, Math.min(9999, Math.floor(v))); // ← ya no topa en 12
+    maxPillsInput.value = String(v);
+    return v;
   }
 
   function init() {
-    resize();
-    r = 10;
-    pos = { x: 0, y: 0 };
+    // estado base
+    paused = false;
+    pauseAccumMs = 0;
+    speedEffect = 'none';
+    speedEffectUntil = 0;
+
     vel = { x: 0, y: 0 };
+    pos = { x: 0, y: 0 };
+    r = 10;
+
+    logs.length = 0;
+    resize();
+
     sizeSteps = 1;
     sizeStepsEl.textContent = String(sizeSteps);
     elapsed = 0;
-    ballColor = randomNonBlueRedColor(); // color fijo aleatorio (no azul/rojo)
+    ballColor = randomNonBlueRedColor(); // color fijo aleatorio (ni azul ni rojo)
     resetGrowthSchedule();
     timeEl.textContent = '0.00';
     state = 'idle';
-    speedSel.disabled = false;
     startBtn.disabled = false;
+    pauseBtn.disabled = true;
+    pauseBtn.textContent = 'Pausar';
     pills.length = 0;
     nextSpawnAt = null;
+    maxPills = clampMaxPills();
+    addLog('Listo: pulsa INICIAR', 'info');
     draw();
   }
 
   function startGame() {
-    speedSel.disabled = true;
     startBtn.disabled = true;
+    pauseBtn.disabled = false;
 
-    // Dirección aleatoria inicial
     const a = Math.random() * Math.PI * 2;
-    vel.x = Math.cos(a) * speed;
-    vel.y = Math.sin(a) * speed;
+    const v0 = effectiveSpeed(performance.now());
+    vel.x = Math.cos(a) * v0;
+    vel.y = Math.sin(a) * v0;
 
     state = 'running';
     startTime = performance.now();
+    addLog('Juego iniciado', 'info');
     scheduleNextSpawn(startTime);
     loop(startTime);
   }
@@ -176,77 +305,86 @@
   function loop(prev) {
     rafId = requestAnimationFrame(now => {
       let dt = (now - prev) / 1000;
-      if (dt > 0.05) dt = 0.05; // evita saltos grandes
+      if (dt > 0.05) dt = 0.05;
       update(dt, now);
       draw();
-      if (state === 'running') loop(now);
+      if (state === 'running' || (state === 'running' && paused)) loop(now);
+      else if (state === 'running') loop(now); // fallback
+      else if (state === 'paused') loop(now);  // mantenemos el bucle para dibujar
+      else if (state === 'ended') {}           // fin
+      else loop(now);                          // idle sigue dibujando
     });
   }
 
   function update(dt, now) {
-    if (state !== 'running') return;
-    elapsed = (performance.now() - startTime) / 1000;
-    timeEl.textContent = elapsed.toFixed(2);
-
-    // Spawning de píldoras
-    if (nextSpawnAt !== null && now >= nextSpawnAt) {
-      spawnRandomPill();
-      scheduleNextSpawn(now);
+    // Cronómetro (no cuenta tiempo en pausa)
+    if (state === 'running' && !paused) {
+      elapsed = (now - startTime - pauseAccumMs) / 1000;
+      timeEl.textContent = elapsed.toFixed(2);
     }
+
+    if (state !== 'running' || paused) return;
+
+    // Spawning de píldoras (respeta límite)
+    if (nextSpawnAt !== null && now >= nextSpawnAt) {
+      if (pills.length < maxPills) {
+        spawnRandomPill();
+        scheduleNextSpawn(now);
+      } else {
+        scheduleNextSpawn(now, 800); // reintento cuando está lleno
+      }
+    }
+
+    // Ajustar velocidad efectiva (por efectos)
+    const targetSpeed = effectiveSpeed(now);
+    applySpeedToVelocity(targetSpeed);
 
     // Mover
     pos.x += vel.x * dt;
     pos.y += vel.y * dt;
 
-    // Colisión con borde (con tolerancia + anti rebote fantasma)
+    // Colisión con borde (tolerancia + anti rebote fantasma)
     let dist = Math.hypot(pos.x, pos.y);
-    let nx = dist === 0 ? 1 : pos.x / dist; // normal hacia afuera
+    let nx = dist === 0 ? 1 : pos.x / dist;
     let ny = dist === 0 ? 0 : pos.y / dist;
 
     const limit = R - r;
     const EPS = 0.001;
     const touching = dist >= (limit - EPS);
-    const movingOutward = (vel.x * nx + vel.y * ny) > 0; // solo colisiona si iba saliendo
+    const movingOutward = (vel.x * nx + vel.y * ny) > 0;
 
     if (touching && movingOutward) {
-      // Colocar exactamente en el borde actual
       pos.x = nx * limit;
       pos.y = ny * limit;
 
-      // CRECER por fase (esto cuenta como "crecimiento")
-      applyGrowthStep();
+      applyGrowthStep('Rebote');
 
-      // ¿Fin del juego?
       if (r >= R - 0.5) {
         state = 'ended';
-        speedSel.disabled = false;
         startBtn.disabled = false;
+        pauseBtn.disabled = true;
         cancelAnimationFrame(rafId);
+        addLog('Fin del juego: tamaño 100%', 'warn');
         return;
       }
 
-      // Nueva dirección aleatoria HACIA ADENTRO (vel · normal < 0)
+      // Nueva dirección aleatoria hacia adentro
       let vx, vy;
       do {
         const a = Math.random() * Math.PI * 2;
-        vx = Math.cos(a) * speed;
-        vy = Math.sin(a) * speed;
+        vx = Math.cos(a) * targetSpeed;
+        vy = Math.sin(a) * targetSpeed;
       } while ((vx * nx + vy * ny) >= 0);
 
       vel.x = vx;
       vel.y = vy;
 
-      // Empujón hacia adentro tras crecer (evita doble colisión inmediata)
+      // Empujón hacia adentro
       const newLimit = R - r;
-      const inset = Math.max(1, speed * dt);
-      const target = Math.max(0, newLimit - inset);
-      pos.x = nx * target;
-      pos.y = ny * target;
-
-      // Recalcular normal (opcional)
-      dist = Math.hypot(pos.x, pos.y);
-      nx = dist === 0 ? 1 : pos.x / dist;
-      ny = dist === 0 ? 0 : pos.y / dist;
+      const inset = Math.max(1, targetSpeed * dt);
+      const t = Math.max(0, newLimit - inset);
+      pos.x = nx * t;
+      pos.y = ny * t;
     }
 
     // Colisión con píldoras (no rebotan)
@@ -255,16 +393,21 @@
       const d = Math.hypot(pos.x - p.x, pos.y - p.y);
       if (d <= r + PILL_RADIUS) {
         if (p.type === 'blue') {
-          applyGrowthStep(); // crecer como si fuera rebote
+          applyGrowthStep('Píldora azul');
           if (r >= R - 0.5) {
             state = 'ended';
-            speedSel.disabled = false;
             startBtn.disabled = false;
+            pauseBtn.disabled = true;
             cancelAnimationFrame(rafId);
+            addLog('Fin del juego: tamaño 100%', 'warn');
             return;
           }
-        } else {
-          applyShrinkStep(); // decrecer con fase anterior (inverso exacto)
+        } else if (p.type === 'red') {
+          applyShrinkStep('Píldora roja');
+        } else if (p.type === 'greenFast') {
+          setSpeedEffect('boost', now);
+        } else if (p.type === 'greenSlow') {
+          setSpeedEffect('slow', now);
         }
         pills.splice(i, 1); // consumida
       }
@@ -282,39 +425,46 @@
     ctx.arc(0, 0, R, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Píldoras (persisten hasta consumirse)
+    // Píldoras
     for (const p of pills) {
-      ctx.fillStyle = (p.type === 'blue') ? '#1877F2' : '#E53935'; // azul/rojo visibles
+      if (p.type === 'blue') ctx.fillStyle = '#1877F2';
+      else if (p.type === 'red') ctx.fillStyle = '#E53935';
+      else if (p.type === 'greenFast') ctx.fillStyle = '#7CFC00';   // verde claro
+      else ctx.fillStyle = '#2E7D32';                                // verde oscuro
       ctx.beginPath();
       ctx.arc(p.x, p.y, PILL_RADIUS, 0, Math.PI * 2);
       ctx.fill();
-      // un pequeño brillo
       ctx.fillStyle = '#fff8';
       ctx.beginPath();
       ctx.arc(p.x - PILL_RADIUS/3, p.y - PILL_RADIUS/3, PILL_RADIUS/3, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // Pelota (color fijo aleatorio, no cambia)
+    // Pelota
     ctx.fillStyle = ballColor;
     ctx.beginPath();
     ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
     ctx.fill();
 
-    // Mensaje
+    // Mensajes en el centro
     ctx.fillStyle = '#333';
     ctx.font = '14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     if (state === 'idle') ctx.fillText('Haz click en INICIAR', 0, 0);
     if (state === 'ended') ctx.fillText('¡Fin! Alcanzaste el 100%', 0, 0);
+    if (paused && state === 'running') ctx.fillText('PAUSADO (P para reanudar)', 0, 0);
   }
 
   function spawnRandomPill() {
-    // Tipo aleatorio 50/50
-    const type = Math.random() < 0.5 ? 'blue' : 'red';
-    // Posición aleatoria dentro del círculo (evitar bordes)
-    // Elegimos un radio uniforme en área: r = sqrt(u) * max
+    // Tipos: blue, red, greenFast (2×), greenSlow (0.5×)
+    const rnum = Math.random();
+    let type;
+    if (rnum < 0.25) type = 'blue';
+    else if (rnum < 0.5) type = 'red';
+    else if (rnum < 0.75) type = 'greenFast';
+    else type = 'greenSlow';
+
     const maxR = R - PILL_RADIUS - 4;
     let x, y;
     for (let tries = 0; tries < 20; tries++) {
@@ -322,19 +472,59 @@
       const rr = Math.sqrt(Math.random()) * maxR;
       x = Math.cos(a) * rr;
       y = Math.sin(a) * rr;
-      // evitar spawnear encima de la pelota (opcional)
       if (Math.hypot(x - pos.x, y - pos.y) > (r + PILL_RADIUS + 12)) break;
     }
     pills.push({ x, y, type });
+    const name = type === 'blue' ? 'azul' : type === 'red' ? 'roja' : (type === 'greenFast' ? 'verde claro (2×)' : 'verde oscuro (0.5×)');
+    addLog(`Spawn píldora ${name} en (${x.toFixed(0)},${y.toFixed(0)})`, 'info');
   }
 
-  // Eventos
+  // Pausa / reanudar
+  function togglePause() {
+    if (state !== 'running') return;
+    paused = !paused;
+    if (paused) {
+      pauseStartMs = performance.now();
+      pauseBtn.textContent = 'Reanudar';
+      addLog('Pausa', 'warn');
+      // estado pseudo 'paused' para mantener RAF y poder dibujar
+    } else {
+      const delta = performance.now() - pauseStartMs;
+      pauseAccumMs += delta;
+      pauseStartMs = 0;
+      pauseBtn.textContent = 'Pausar';
+      // Mover timers para que no “corran” durante la pausa
+      if (nextSpawnAt !== null) nextSpawnAt += delta;
+      if (speedEffect !== 'none') speedEffectUntil += delta;
+      addLog('Reanudar', 'warn');
+    }
+  }
+
+  // Eventos UI
   startBtn.addEventListener('click', () => { if (state === 'idle') startGame(); });
   resetBtn.addEventListener('click', () => { cancelAnimationFrame(rafId); init(); });
-  speedSel.addEventListener('change', () => { if (state === 'idle') { updateSpeedFromUI(); } });
+  pauseBtn.addEventListener('click', togglePause);
+  maxPillsInput.addEventListener('change', () => {
+    maxPills = clampMaxPills();
+    addLog(`Límite de píldoras → ${maxPills}`, 'info');
+  });
   window.addEventListener('resize', () => { init(); });
 
+  // Logs UI
+  toggleLogBtn.addEventListener('click', toggleLogs);
+  closeLogBtn.addEventListener('click', toggleLogs);
+  clearLogBtn.addEventListener('click', () => { logs.length = 0; renderLogs(); });
+
+  // Hotkey: P pausa/reanuda
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'p' || e.key === 'P') {
+      e.preventDefault();
+      togglePause();
+    }
+  });
+
   // Boot
+  let ballColor = randomNonBlueRedColor(); // definido arriba en init de nuevo, pero seteamos uno por si acaso
   init();
 })();
 </script>
