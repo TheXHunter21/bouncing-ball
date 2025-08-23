@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Battle Balls — escudo + control de rebote</title>
+<title>Battle Balls — morph amarillo + ajustes</title>
 <style>
   :root { color-scheme: light dark; }
   body { margin: 0; font-family: system-ui, Segoe UI, Roboto, sans-serif; display: grid; place-items: center; min-height: 100dvh; gap: 12px; }
@@ -39,7 +39,7 @@
   }
   .log-overlay main {
     padding: 8px 10px; height: calc(60vh - 48px - 12px);
-    overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    overflow: auto; font-family: ui-monospace, Menlo, Consolas, monospace;
     font-size: 12px; line-height: 1.35;
   }
   .log-line { opacity: .92; }
@@ -57,15 +57,15 @@
       </label>
 
       <label>Píldoras máx.:
-        <input id="maxPills" type="number" value="10" min="0" step="1" />
+        <input id="maxPills" type="number" value="20" min="0" step="1" />
       </label>
 
       <label>Frecuencia spawn:
-        <input id="spawnRate" type="range" min="25" max="300" value="100" step="5" />
-        <span id="spawnRateVal">100%</span>
+        <input id="spawnRate" type="range" min="25" max="300" value="250" step="5" />
+        <span id="spawnRateVal">250%</span>
       </label>
 
-      <button id="toggleEdgeGrow">Rebote crece: ON</button>
+      <button id="toggleEdgeGrow">Rebote crece: OFF</button>
 
       <button id="start">INICIAR</button>
       <button id="pause" disabled>Pausar</button>
@@ -122,26 +122,31 @@
   let paused = false, pauseStartMs = 0, pauseAccumMs = 0;
 
   // Mundo & físicas
-  let R, baseSpeed, defaultSpeed; // defaultSpeed = baseSpeed * 1.5
+  let R, baseSpeed, defaultSpeed; // defaultSpeed = baseSpeed * 2.25 (antes 1.5)
   let startTime = 0, elapsed = 0, rafId = null;
 
   // Píldoras
   const pills = [];
-  const PILL_RADIUS = 8;
+  const PILL_RADIUS = 16; // rombos: radio de colisión
   let nextSpawnAt = null;
-  let maxPills = 10;
-  let spawnRatePct = 100; // 100% = base (1.5–4s). >100 = más rápido
+  let maxPills = 20;
+  let spawnRatePct = 250;
 
   // Pelotas
   const balls = [];
-  const LEVEL_START = 5; // nivel inicial
+  const LEVEL_START = 5;
   let ballCount = 3;
-  const SPAWN_IMMUNITY_MS = 700; // inmunidad al iniciar
-  let edgeGrowEnabled = true; // botón ON/OFF de crecimiento en bordes
+  const SPAWN_IMMUNITY_MS = 700;
+  let edgeGrowEnabled = false; // ahora arranca OFF
+
+  // Morph global (píldora amarilla)
+  let morphType = null;            // 'blue' | 'red' | 'greenFast' | 'greenSlow' | 'cyanShield'
+  let morphUntil = 0;
+  const MORPH_DURATION_MS = 8000;  // 8 segundos
 
   // Logs
   const logs = [];
-  const LOG_MAX = 600;
+  const LOG_MAX = 700;
   function fmtTime(sec) { return sec.toFixed(2).padStart(5, '0'); }
   function addLog(msg, level = 'info') {
     const t = state === 'idle' ? 0 : Math.max(0, (performance.now() - startTime - pauseAccumMs) / 1000);
@@ -169,7 +174,7 @@
   function randomAngle() { return Math.random() * Math.PI * 2; }
   function scheduleNextSpawn(now = performance.now(), delayMs) {
     if (typeof delayMs === 'number') { nextSpawnAt = now + delayMs; return; }
-    const factor = 100 / spawnRatePct; // 200% => mitad de tiempo; 50% => doble
+    const factor = 100 / spawnRatePct;
     const base = randomRange(1500, 4000);
     nextSpawnAt = now + base * factor;
   }
@@ -196,7 +201,7 @@
     return 5;
   }
 
-  // Crecer: sube nivel y aplica % del nuevo nivel
+  // Crecer / Decrecer (con escudo)
   function applyGrowthStep(ball, source) {
     const prev = ball.level;
     ball.level++;
@@ -205,7 +210,6 @@
     addLog(`${ball.id} ${source}: nivel ${prev}→${ball.level} (+${pct}%)`);
     updateScoreboard();
   }
-  // Decrecer con ESCUDO: si tiene escudo, lo consume y NO decrece
   function tryShrink(ball, source) {
     if (ball.shield) {
       ball.shield = false;
@@ -215,7 +219,6 @@
     }
     applyShrinkStep(ball, source);
   }
-  // Decrecer: usa inverso del % del nivel actual y luego baja nivel
   function applyShrinkStep(ball, source) {
     const prev = ball.level;
     const pct = pctForLevel(ball.level);
@@ -229,7 +232,7 @@
     }
   }
 
-  // Velocidad por pelota (default 1.5×; verdes = 2× / 0.5× por 5s)
+  // Velocidad (por pelota) y efectos
   function effectiveSpeed(ball, nowMs) {
     if (ball.speedEffect !== 'none' && nowMs >= ball.speedEffectUntil) {
       const prev = ball.speedEffect;
@@ -265,7 +268,7 @@
     ctx.translate(cssSize/2, cssSize/2);
     R = (cssSize/2) - 10;
     baseSpeed = R * 0.45;
-    defaultSpeed = baseSpeed * 1.5; // velocidad por defecto
+    defaultSpeed = baseSpeed * 2.25; // ← velocidad por defecto aumentada 1.5×
     addLog('Canvas redimensionado', 'info');
   }
 
@@ -274,11 +277,11 @@
     ballCount = Math.max(1, Math.min(50, Math.floor(n)));
     ballCountInput.value = String(ballCount);
 
-    let mp = Number(maxPillsInput.value); if (!Number.isFinite(mp)) mp = 10;
+    let mp = Number(maxPillsInput.value); if (!Number.isFinite(mp)) mp = 20;
     maxPills = Math.max(0, Math.floor(mp));
     maxPillsInput.value = String(maxPills);
 
-    let sr = Number(spawnRateInput.value); if (!Number.isFinite(sr)) sr = 100;
+    let sr = Number(spawnRateInput.value); if (!Number.isFinite(sr)) sr = 250;
     spawnRatePct = Math.max(25, Math.min(300, Math.floor(sr)));
     spawnRateInput.value = String(spawnRatePct);
     spawnRateVal.textContent = `${spawnRatePct}%`;
@@ -294,25 +297,54 @@
     scoreboardEl.innerHTML = items.join('');
   }
 
+  // ---- MORPH ----
+  const PILL_NAMES = {
+    blue: 'azul',
+    red: 'roja',
+    greenFast: 'verde claro (2×)',
+    greenSlow: 'verde oscuro (0.5×)',
+    cyanShield: 'celeste (escudo)',
+    yellowMorph: 'amarilla (morph)',
+  };
+  const MORPH_CHOICES = ['blue','red','greenFast','greenSlow','cyanShield']; // a esto se transforman
+  function startMorph(nowMs) {
+    const pick = MORPH_CHOICES[Math.floor(Math.random() * MORPH_CHOICES.length)];
+    morphType = pick;
+    morphUntil = nowMs + MORPH_DURATION_MS;
+    // convertir EXISTENTES
+    for (const p of pills) { p.type = pick; p.name = PILL_NAMES[pick]; }
+    addLog(`Efecto AMARILLO: todas las píldoras → ${PILL_NAMES[pick]} por 8s`, 'warn');
+  }
+  function maybeEndMorph(nowMs) {
+    if (morphType && nowMs >= morphUntil) {
+      addLog(`Fin efecto AMARILLO (morph)`, 'warn');
+      morphType = null;
+    }
+  }
+
   function init() {
-    paused = false; pauseAccumMs = 0;
+    paused = false; pauseAccumMs = 0; morphType = null; morphUntil = 0;
     logs.length = 0;
     resize();
     clampInputs();
 
-    // Crear pelotas
+    // Crear pelotas (radio inicial 25) con colocación que evita overlap
     balls.length = 0;
+    const R_INIT = 25;
     for (let i = 0; i < ballCount; i++) {
       const id = `P${i+1}`;
       const color = randomNonBlueRedColor();
-      // pos inicial separada (anillo pequeño) + inmunidad
-      const a = randomAngle();
-      const rr = 5 + Math.random() * 20 + i * 2;
-      const pos = { x: Math.cos(a) * rr, y: Math.sin(a) * rr };
+      let pos, tries=0;
+      do {
+        const a = randomAngle();
+        const rr = 30 + Math.random()*60; // anillo inicial algo amplio
+        pos = { x: Math.cos(a) * rr, y: Math.sin(a) * rr };
+        tries++;
+      } while (tries < 100 && balls.some(b => Math.hypot(b.pos.x - pos.x, b.pos.y - pos.y) < (b.r + R_INIT + 8)));
       const ball = {
         id, color,
         pos, vel: { x: 0, y: 0 },
-        r: 10,
+        r: R_INIT,                  // ← 25
         level: LEVEL_START,
         alive: true,
         speedEffect: 'none',
@@ -347,7 +379,7 @@
   function startGame() {
     startBtn.disabled = true;
     pauseBtn.disabled = false;
-    ballCountInput.disabled = true; // count solo pre-game
+    ballCountInput.disabled = true;
 
     const now = performance.now();
     for (const b of balls) {
@@ -355,7 +387,7 @@
       const v0 = effectiveSpeed(b, now);
       b.vel.x = Math.cos(a) * v0;
       b.vel.y = Math.sin(a) * v0;
-      b.noCollideUntil = now + SPAWN_IMMUNITY_MS; // inmunidad
+      b.noCollideUntil = now + SPAWN_IMMUNITY_MS;
     }
 
     state = 'running';
@@ -408,17 +440,20 @@
     }
     if (state !== 'running' || paused) return;
 
+    // Fin de efectos cronometrados
+    maybeEndMorph(now);
+
     // Spawn de píldoras (límite)
     if (nextSpawnAt !== null && now >= nextSpawnAt) {
       if (pills.length < maxPills) {
-        spawnRandomPill();
+        spawnRandomPill(now);
         scheduleNextSpawn(now);
       } else {
         scheduleNextSpawn(now, 800);
       }
     }
 
-    // Actualizar cada pelota
+    // Actualizar pelotas
     for (const b of balls) {
       if (!b.alive) continue;
 
@@ -473,7 +508,6 @@
       for (let j = i+1; j < balls.length; j++) {
         const B = balls[j]; if (!B.alive) continue;
 
-        // inmunidad inicial
         if (now < A.noCollideUntil || now < B.noCollideUntil) continue;
 
         const dx = B.pos.x - A.pos.x;
@@ -485,13 +519,11 @@
           const overlap = minDist - d + 0.5;
           A.pos.x -= nx * overlap/2; A.pos.y -= ny * overlap/2;
           B.pos.x += nx * overlap/2; B.pos.y += ny * overlap/2;
-          // reflejo simple
           const vaDot = A.vel.x*nx + A.vel.y*ny;
           const vbDot = B.vel.x*nx + B.vel.y*ny;
           A.vel.x -= 2*vaDot*nx; A.vel.y -= 2*vaDot*ny;
           B.vel.x -= 2*vbDot*nx; B.vel.y -= 2*vbDot*ny;
 
-          // ambas intentar decrecer (escudo puede bloquear)
           tryShrink(A, `colisión con ${B.id}`);
           tryShrink(B, `colisión con ${A.id}`);
 
@@ -500,7 +532,7 @@
       }
     }
 
-    // Colisiones con píldoras (no rebotan)
+    // Colisiones con píldoras (rombos; colisión por radio)
     for (let pi = pills.length - 1; pi >= 0; pi--) {
       const p = pills[pi];
       let consumed = false;
@@ -527,6 +559,8 @@
               addLog(`${b.id}: obtuvo ESCUDO (1 uso).`, 'info');
               updateScoreboard();
             }
+          } else if (p.type === 'yellowMorph') {
+            startMorph(now);
           }
           addLog(`${b.id} consumió píldora ${p.name}.`);
           consumed = true;
@@ -548,19 +582,30 @@
     ctx.arc(0, 0, R, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Píldoras
+    // Píldoras (rombos)
     for (const p of pills) {
       if (p.type === 'blue') ctx.fillStyle = '#1877F2';
       else if (p.type === 'red') ctx.fillStyle = '#E53935';
-      else if (p.type === 'greenFast') ctx.fillStyle = '#7CFC00';   // verde claro (2×)
-      else if (p.type === 'greenSlow') ctx.fillStyle = '#2E7D32';   // verde oscuro (0.5×)
-      else if (p.type === 'cyanShield') ctx.fillStyle = '#33CFFF';  // celeste (escudo)
+      else if (p.type === 'greenFast') ctx.fillStyle = '#7CFC00';
+      else if (p.type === 'greenSlow') ctx.fillStyle = '#2E7D32';
+      else if (p.type === 'cyanShield') ctx.fillStyle = '#33CFFF';
+      else if (p.type === 'yellowMorph') ctx.fillStyle = '#FFD400';
+
       ctx.beginPath();
-      ctx.arc(p.x, p.y, PILL_RADIUS, 0, Math.PI * 2);
+      ctx.moveTo(p.x, p.y - PILL_RADIUS);
+      ctx.lineTo(p.x + PILL_RADIUS, p.y);
+      ctx.lineTo(p.x, p.y + PILL_RADIUS);
+      ctx.lineTo(p.x - PILL_RADIUS, p.y);
+      ctx.closePath();
       ctx.fill();
+
+      // highlight
       ctx.fillStyle = '#fff8';
       ctx.beginPath();
-      ctx.arc(p.x - PILL_RADIUS/3, p.y - PILL_RADIUS/3, PILL_RADIUS/3, 0, Math.PI * 2);
+      ctx.moveTo(p.x, p.y - PILL_RADIUS/1.6);
+      ctx.lineTo(p.x + PILL_RADIUS/1.6, p.y);
+      ctx.lineTo(p.x, p.y - PILL_RADIUS/2.2);
+      ctx.closePath();
       ctx.fill();
     }
 
@@ -572,7 +617,7 @@
       ctx.arc(b.pos.x, b.pos.y, b.r, 0, Math.PI * 2);
       ctx.fill();
 
-      // Escudo visual: borde celeste
+      // Escudo visual
       if (b.shield) {
         ctx.lineWidth = 3;
         ctx.strokeStyle = '#33CFFF';
@@ -589,22 +634,28 @@
     ctx.textBaseline = 'middle';
     if (state === 'idle') ctx.fillText('Configura y haz click en INICIAR', 0, 0);
     if (state === 'ended') ctx.fillText('Juego terminado', 0, 0);
-    if (paused && state === 'running') ctx.fillText('PAUSADO (P para reanudar)', 0, 0);
+    if (paused && state === 'running') ctx.fillText('PAUSADO (P o Espacio)', 0, 0);
   }
 
-  // Ponderación pedida:
-  // ROJA: 75, AZUL: 100, VERDE CLARO: 25, VERDE OSCURO: 25, CELESTE(escudo): 25
-  function spawnRandomPill() {
+  // Pesos actualizados: azul 150, roja 20, verdeC 15, verdeO 15, celeste 25, amarilla 25
+  function spawnRandomPill(now=performance.now()) {
     const weights = [
-      {type:'blue',       name:'azul',                 w:100},
-      {type:'red',        name:'roja',                 w:75},
-      {type:'greenFast',  name:'verde claro (2×)',     w:25},
-      {type:'greenSlow',  name:'verde oscuro (0.5×)',  w:25},
-      {type:'cyanShield', name:'celeste (escudo)',     w:25},
+      {type:'blue',       name:PILL_NAMES.blue,       w:150},
+      {type:'red',        name:PILL_NAMES.red,        w:20},
+      {type:'greenFast',  name:PILL_NAMES.greenFast,  w:15},
+      {type:'greenSlow',  name:PILL_NAMES.greenSlow,  w:15},
+      {type:'cyanShield', name:PILL_NAMES.cyanShield, w:25},
+      {type:'yellowMorph',name:PILL_NAMES.yellowMorph,w:25},
     ];
-    const total = weights.reduce((s,o)=>s+o.w,0);
-    let r = Math.random()*total, pick = weights[0];
-    for (const o of weights) { if ((r-=o.w) <= 0) { pick=o; break; } }
+    let pick;
+    if (morphType) {
+      // Mientras dure el morph, TODO spawnea de ese tipo
+      pick = { type: morphType, name: PILL_NAMES[morphType] };
+    } else {
+      const total = weights.reduce((s,o)=>s+o.w,0);
+      let r = Math.random()*total;
+      for (const o of weights) { r -= o.w; if (r <= 0) { pick = o; break; } }
+    }
 
     const maxR = R - PILL_RADIUS - 4;
     let x=0, y=0;
@@ -642,6 +693,7 @@
         if (b.speedEffect !== 'none') b.speedEffectUntil += delta;
         if (b.noCollideUntil > performance.now()) b.noCollideUntil += delta;
       }
+      if (morphType) morphUntil += delta; // extender morph por pausa
       addLog('Reanudar', 'warn');
     }
   }
@@ -668,9 +720,12 @@
   closeLogBtn.addEventListener('click', toggleLogs);
   clearLogBtn.addEventListener('click', () => { logs.length = 0; renderLogs(); });
 
-  // Hotkey: P pausa/reanuda
+  // Hotkeys: P o Espacio para pausa
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'p' || e.key === 'P') { e.preventDefault(); togglePause(); }
+    if (e.key === 'p' || e.key === 'P' || e.code === 'Space' || e.key === ' ') {
+      e.preventDefault();
+      togglePause();
+    }
   });
 
   // Boot
