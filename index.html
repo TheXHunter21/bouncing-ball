@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Battle Balls — inline duraciones + hotkeys</title>
+<title>Battle Balls — píldora fucsia (mitad global)</title>
 <style>
   :root{color-scheme:light dark}
   body{margin:0;font-family:system-ui,Segoe UI,Roboto,sans-serif;display:grid;place-items:center;min-height:100dvh;gap:12px}
@@ -157,6 +157,10 @@
             <input class="w" id="wGray" type="number" step="5" min="0" value="10">
             <span class="dur"><label>seg</label><input class="s" id="durGray" type="number" min="2" step="1" value="8"></span>
           </div>
+          <div class="row">
+            <span class="name">Fucsia (mitad global)</span>
+            <input class="w" id="wFuchsia" type="number" step="5" min="0" value="3">
+          </div>
         </div>
       </div>
 
@@ -199,7 +203,7 @@
   const speedMultInput = document.getElementById('speedMult');
   const speedMultVal = document.getElementById('speedMultVal');
 
-  // inline duration inputs (junto a pesos)
+  // inline duration & weight inputs
   const wBlue = document.getElementById('wBlue');
   const wRed = document.getElementById('wRed');
   const wGreenFast = document.getElementById('wGreenFast');
@@ -210,6 +214,7 @@
   const wTurq = document.getElementById('wTurq');
   const wPink = document.getElementById('wPink');
   const wGray = document.getElementById('wGray');
+  const wFuchsia = document.getElementById('wFuchsia');
 
   const durGreenFast = document.getElementById('durGreenFast');
   const durGreenSlow = document.getElementById('durGreenSlow');
@@ -219,7 +224,7 @@
   const durGray = document.getElementById('durGray');
 
   // Local storage
-  const CFG_KEY = 'battleballs_config_v4';
+  const CFG_KEY = 'battleballs_config_v4'; // mantenemos v4 y añadimos la fucsia
 
   // State
   let state = 'idle'; // 'idle' | 'running' | 'ended'
@@ -230,7 +235,7 @@
   let speedMult = 2.25; // configurable (x)
   let startTime = 0, elapsed = 0, rafId = null;
 
-  // Helper: "game time now" (para dibujar auras sin que desaparezcan en pausa)
+  // Helper: game time (para auras persistentes en pausa)
   const gameNowMs = () => paused ? pauseStartMs : performance.now();
 
   // Pills
@@ -240,16 +245,15 @@
   let spawnRatePct = 250;
   let maxPills = 20;
 
-  // Spawn weights (config)
+  // Spawn weights
   const spawnWeights = {
     blue:150, red:20, greenFast:15, greenSlow:15, cyanShield:25,
-    yellowMorph:5, whiteGhost:10, turquoiseEdge:10, pinkDup:10, grayObstacle:10
+    yellowMorph:5, whiteGhost:10, turquoiseEdge:10, pinkDup:10, grayObstacle:10,
+    fuchsiaHalf:3
   };
 
   // Durations (sec)
-  const durations = {
-    boost:5, slow:5, ghost:5, edge:5, morph:8, obstacle:8
-  };
+  const durations = { boost:5, slow:5, ghost:5, edge:5, morph:8, obstacle:8 };
 
   // Balls
   const balls = [];
@@ -260,7 +264,7 @@
   // Obstacle (gray)
   const obstacle = { active:false, until:0, r:0 };
 
-  // Durations (ms) computed
+  // Durations (ms)
   const ms = s => s*1000;
 
   // Morph state
@@ -311,7 +315,8 @@
   const PILL_NAMES = {
     blue:'azul', red:'roja', greenFast:'verde claro (2×)', greenSlow:'verde oscuro (0.5×)',
     cyanShield:'celeste (escudo)', yellowMorph:'amarilla (frenesí)', whiteGhost:'blanca (fantasma)',
-    turquoiseEdge:'turquesa (bordes +)', pinkDup:'rosa (duplicador)', grayObstacle:'gris (obstáculo)'
+    turquoiseEdge:'turquesa (bordes +)', pinkDup:'rosa (duplicador)', grayObstacle:'gris (obstáculo)',
+    fuchsiaHalf:'fucsia (mitad global)'
   };
   function pillColor(type){
     return type==='blue'?'#1877F2':
@@ -324,9 +329,10 @@
            type==='turquoiseEdge'?'#00D1B2':
            type==='pinkDup'?'#FF69B4':
            type==='grayObstacle'?'#666':
+           type==='fuchsiaHalf'?'#a4195b':
            '#888';
   }
-  const MORPH_CHOICES = ['blue','red','greenFast','greenSlow','cyanShield','whiteGhost','turquoiseEdge','pinkDup','grayObstacle'];
+  const MORPH_CHOICES = ['blue','red','greenFast','greenSlow','cyanShield','whiteGhost','turquoiseEdge','pinkDup','grayObstacle','fuchsiaHalf'];
 
   // Growth table
   function pctForLevel(level){
@@ -455,6 +461,7 @@
     spawnWeights.turquoiseEdge = Math.max(0, Math.floor(Number(wTurq.value)||0));
     spawnWeights.pinkDup = Math.max(0, Math.floor(Number(wPink.value)||0));
     spawnWeights.grayObstacle = Math.max(0, Math.floor(Number(wGray.value)||0));
+    spawnWeights.fuchsiaHalf = Math.max(0, Math.floor(Number(wFuchsia.value)||0));
   }
 
   function updateScoreboard(){
@@ -504,6 +511,7 @@
     wTurq.value = spawnWeights.turquoiseEdge;   durTurq.value = durations.edge;
     wPink.value = spawnWeights.pinkDup;
     wGray.value = spawnWeights.grayObstacle;    durGray.value = durations.obstacle;
+    wFuchsia.value = spawnWeights.fuchsiaHalf;
   }
 
   function init(){
@@ -565,6 +573,29 @@
     return false;
   }
 
+ function forceDownTo(ball, targetLevel, now, opts = {}) {
+  // Por defecto: fucsia ignora fantasma; el escudo rompe y BLOQUEA para "otros".
+  const breakShieldBlocks = opts.breakShieldBlocks ?? true;
+  const ignoreGhost = opts.ignoreGhost ?? true;
+
+  while (ball.alive && ball.level > targetLevel) {
+    if (ball.shield) {
+      ball.shield = false;
+      addLog(`${ball.id}: ESCUDO roto por fucsia`, 'warn');
+      updateScoreboard();
+      if (breakShieldBlocks) break;  // otros: escudo te salva del efecto
+      // self con duplicador: NO bloquea, continúa para aplicar la bajada
+    }
+    if (!ignoreGhost && isGhost(ball, now)) {
+      addLog(`${ball.id}: fantasma ignora fucsia`, 'info');
+      break;
+    }
+    applyShrinkStep(ball, 'Fucsia');
+    if (ball.level <= 0) break;
+  }
+}
+
+
   function update(dt, now){
     if(state==='running' && !paused){
       elapsed=(now-startTime-pauseAccumMs)/1000; timeEl.textContent=elapsed.toFixed(2);
@@ -606,8 +637,7 @@
           b.vel.x=vx; b.vel.y=vy;
 
           if(b.edgeGrowUntil && now < b.edgeGrowUntil){
-            applyGrowthStep(b, 'Rebote obstáculo');
-            if (checkWinConditions()) return;
+            applyGrowthStep(b, 'Rebote obstáculo'); if (checkWinConditions()) return;
           }
           const inset = Math.max(1, targetSpeed*dt);
           const t = limit0 + inset;
@@ -702,6 +732,41 @@
           else if(p.type==='grayObstacle'){
             const sec = durations.obstacle * times; spawnObstacle(now, sec);
           }
+          else if (p.type==='fuchsiaHalf'){
+  // Duplicador ya no multiplica; hace que también se afecte el que la comió
+  const hadDup = b.dupNext === true;
+  b.dupNext = false;
+
+  const sizeMid = Math.floor(b.level / 2);
+  let affected = 0;
+
+  // Afectar a los DEMÁS (escudo rompe y salva; fantasma no protege)
+  for (const other of balls) {
+    if (!other.alive || other === b) continue;
+    if (other.level > sizeMid) {
+      if (other.shield) {
+        other.shield = false;
+        addLog(`${other.id}: ESCUDO bloqueó fucsia (objetivo ${sizeMid})`, 'warn');
+        updateScoreboard();
+        continue; // protegido
+      }
+      // ignora ghost en fucsia
+      forceDownTo(other, sizeMid, now, { breakShieldBlocks: true, ignoreGhost: true });
+      affected++;
+    }
+  }
+
+  // Si tenía duplicador, TAMBIÉN baja el que la comió (ignora escudo/ghost)
+  if (hadDup && b.level > sizeMid) {
+    forceDownTo(b, sizeMid, now, { breakShieldBlocks: false, ignoreGhost: true });
+    addLog(`${b.id} tenía duplicador: también baja a ${sizeMid}.`, 'warn');
+  } else if (hadDup) {
+    addLog(`${b.id} tenía duplicador pero ya estaba ≤ ${sizeMid}.`, 'info');
+  }
+
+  addLog(`${b.id} activó FUCSIA → tamañoMedio ${sizeMid}. Afectadas: ${affected}.`, 'warn');
+  if (checkWinConditions()) return;
+}
 
           addLog(`${b.id} consumió píldora ${p.name}.`);
           consumed=true; break;
@@ -781,7 +846,7 @@
       ['greenSlow',spawnWeights.greenSlow],['cyanShield',spawnWeights.cyanShield],
       ['yellowMorph',spawnWeights.yellowMorph],['whiteGhost',spawnWeights.whiteGhost],
       ['turquoiseEdge',spawnWeights.turquoiseEdge],['pinkDup',spawnWeights.pinkDup],
-      ['grayObstacle',spawnWeights.grayObstacle]
+      ['grayObstacle',spawnWeights.grayObstacle],['fuchsiaHalf',spawnWeights.fuchsiaHalf]
     ].filter(([,w])=>w>0);
 
     if(!entries.length){ scheduleNextSpawn(now,1200); return; }
@@ -843,7 +908,7 @@
   // inputs
   spawnRateInput.addEventListener('input', ()=>{ clampInputs(); });
   speedMultInput.addEventListener('input', ()=>{ if(state==='idle'){ clampInputs(); } else { speedMultInput.value=speedMult; } });
-  [wBlue,wRed,wGreenFast,wGreenSlow,wCyan,wYellow,wWhite,wTurq,wPink,wGray,
+  [wBlue,wRed,wGreenFast,wGreenSlow,wCyan,wYellow,wWhite,wTurq,wPink,wGray,wFuchsia,
    durGreenFast,durGreenSlow,durWhite,durTurq,durYellow,durGray].forEach(inp=>{
     inp.addEventListener('change', ()=>{ clampInputs(); });
   });
@@ -862,8 +927,7 @@
   toggleLogBtn.addEventListener('click', toggleLogs);
   closeLogBtn.addEventListener('click', toggleLogs);
 
-  // Hotkeys:
-  // P / Space = pausa, L = logs, C = config, R = reset, Enter = iniciar, ESC = cerrar config
+  // Hotkeys: P/Espacio pausa, L logs, C config, R reset, Enter iniciar, ESC cierra config
   window.addEventListener('keydown', (e)=>{
     const tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
     const isTyping = tag === 'INPUT' || tag === 'TEXTAREA';
