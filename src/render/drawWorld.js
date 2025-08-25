@@ -33,28 +33,36 @@ export function drawWorld(ctx, state, now){
     ctx.closePath(); ctx.fill();
   }
 
-  // pelotas
-  for(const b of state.balls){
-    if(!b.alive) continue;
+// pelotas
+for(const b of state.balls){
+  if(!b.alive) continue;
 
-    // parpadeo teleport
-    let fading=false;
-    if(state.teleportPair && (b.id===state.teleportPair.aId || b.id===state.teleportPair.bId) && !state.teleportPair.blinkOn){
-      fading=true; ctx.save(); ctx.globalAlpha=0.25;
-    }
-
-    ctx.fillStyle=b.color; ctx.beginPath(); ctx.arc(b.pos.x,b.pos.y,b.r,0,TAU); ctx.fill();
-
-    // aros estados
-    if(b.shield){ ctx.lineWidth=3; ctx.strokeStyle='#33CFFF'; ctx.beginPath(); ctx.arc(b.pos.x,b.pos.y,b.r+2,0,TAU); ctx.stroke(); }
-    if(b.ghostUntil && now < b.ghostUntil){ ctx.lineWidth=2; ctx.setLineDash([6,4]); ctx.strokeStyle='#ffffffcc'; ctx.beginPath(); ctx.arc(b.pos.x,b.pos.y,b.r+5,0,TAU); ctx.stroke(); ctx.setLineDash([]); }
-    if(b.edgeGrowUntil && now < b.edgeGrowUntil){ ctx.lineWidth=2; ctx.strokeStyle='#00D1B2'; ctx.beginPath(); ctx.arc(b.pos.x,b.pos.y,b.r+8,0,TAU); ctx.stroke(); }
-    if(b.teleportMarked && !(state.teleportPair && (b.id===state.teleportPair.aId || b.id===state.teleportPair.bId))){
-      ctx.lineWidth=3; ctx.strokeStyle='#f4c2a1'; ctx.beginPath(); ctx.arc(b.pos.x,b.pos.y,b.r+6,0,TAU); ctx.stroke();
-    }
-
-    if(fading) ctx.restore();
+  // parpadeo teleport (tu código existente)
+  let fading=false;
+  if(state.teleportPair && (b.id===state.teleportPair.aId || b.id===state.teleportPair.bId) && !state.teleportPair.blinkOn){
+    fading=true; ctx.save(); ctx.globalAlpha=0.25;
   }
+
+  // 🔔 color: si tiene flash activo, usar fucsia; si expiró, limpiar flag
+  const flashing = b._flashUntil && now < b._flashUntil;
+  if(b._flashUntil && now >= b._flashUntil) b._flashUntil = 0;
+  ctx.fillStyle = flashing ? (b._flashColor || '#a4195b') : b.color;
+
+  ctx.beginPath();
+  ctx.arc(b.pos.x, b.pos.y, b.r, 0, TAU);
+  ctx.fill();
+
+  // (anillos de estados como escudo/ghost/edge/teleport, igual que ya tienes)
+  if(b.shield){ ctx.lineWidth=3; ctx.strokeStyle='#33CFFF'; ctx.beginPath(); ctx.arc(b.pos.x,b.pos.y,b.r+2,0,TAU); ctx.stroke(); }
+  if(b.ghostUntil && now < b.ghostUntil){ ctx.lineWidth=2; ctx.setLineDash([6,4]); ctx.strokeStyle='#ffffffcc'; ctx.beginPath(); ctx.arc(b.pos.x,b.pos.y,b.r+5,0,TAU); ctx.stroke(); ctx.setLineDash([]); }
+  if(b.edgeGrowUntil && now < b.edgeGrowUntil){ ctx.lineWidth=2; ctx.strokeStyle='#00D1B2'; ctx.beginPath(); ctx.arc(b.pos.x,b.pos.y,b.r+8,0,TAU); ctx.stroke(); }
+  if(b.teleportMarked && !(state.teleportPair && (b.id===state.teleportPair.aId || b.id===state.teleportPair.bId))){
+    ctx.lineWidth=3; ctx.strokeStyle='#f4c2a1'; ctx.beginPath(); ctx.arc(b.pos.x,b.pos.y,b.r+6,0,TAU); ctx.stroke();
+  }
+
+  if(fading) ctx.restore();
+}
+
 
   if(!state.started){
     ctx.fillStyle='#9aa4b2'; ctx.font='14px system-ui,Segoe UI,Roboto,sans-serif';

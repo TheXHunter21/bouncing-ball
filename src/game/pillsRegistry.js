@@ -87,25 +87,57 @@ export function onConsumePill(p, ball, gs, now, log){
   if(p.type==='grayObstacle'){
     spawnObstacle(gs, getDur('obstacle')*times, now, log); return;
   }
-  if(p.type==='fuchsiaHalf'){
-    const sizeMid = Math.floor(ball.level/2);
-    let affected=0;
-    for(const other of gs.balls){
-      if(!other.alive || other===ball) continue;
-      if(other.level > sizeMid){
-        if(other.shield){ other.shield=false; log?.(`${other.id}: ESCUDO bloqueó fucsia (objetivo ${sizeMid})`); }
-        else { forceDownTo(other, sizeMid, now, log, { breakShieldBlocks:true, ignoreGhost:true }); affected++; }
+if(p.type==='fuchsiaHalf'){
+  const sizeMid = Math.floor(ball.level / 2);
+  let affected = 0;
+
+  // bajar a tamañoMedio (respetando escudos; fantasma no evita este efecto)
+  for (const other of gs.balls) {
+    if (!other.alive || other === ball) continue;
+    if (other.level > sizeMid) {
+      if (other.shield) {
+        other.shield = false;
+        log?.(`${other.id}: ESCUDO bloqueó fucsia (objetivo ${sizeMid})`);
+      } else {
+        forceDownTo(other, sizeMid, now, log, {
+          breakShieldBlocks: true,
+          ignoreGhost: true,
+        });
+        affected++;
       }
     }
-    if(times>1 && ball.level > sizeMid){
-      if(ball.shield){ ball.shield=false; log?.(`${ball.id}: ESCUDO roto por fucsia (propio)`); }
-      forceDownTo(ball, sizeMid, now, log, { breakShieldBlocks:false, ignoreGhost:true });
-      log?.(`${ball.id} tenía duplicador: también baja a ${sizeMid}.`);
-    }else if(times>1){ log?.(`${ball.id} tenía duplicador pero ya estaba ≤ ${sizeMid}.`); }
-    log?.(`${ball.id} activó FUCSIA → tamañoMedio ${sizeMid}. Afectadas: ${affected}.`);
-    if(gs.checkWin?.()) return;
-    return;
   }
+
+  // si tenía duplicador, también baja el propio
+  if (times > 1 && ball.level > sizeMid) {
+    if (ball.shield) {
+      ball.shield = false;
+      log?.(`${ball.id}: ESCUDO roto por fucsia (propio)`);
+    }
+    forceDownTo(ball, sizeMid, now, log, {
+      breakShieldBlocks: false,
+      ignoreGhost: true,
+    });
+    log?.(`${ball.id} tenía duplicador: también baja a ${sizeMid}.`);
+  } else if (times > 1) {
+    log?.(`${ball.id} tenía duplicador pero ya estaba ≤ ${sizeMid}.`);
+  }
+
+  // 🔔 Flash visual: todas las DEMÁS pelotas parpadean fucsia una vez
+  const FLASH_MS = 250;
+  for (const other of gs.balls) {
+    if (!other.alive || other === ball) continue;
+    other._flashColor = pillColor("fuchsiaHalf"); // #a4195b
+    other._flashUntil = now + FLASH_MS;
+  }
+
+  log?.(
+    `${ball.id} activó FUCSIA → tamañoMedio ${sizeMid}. Afectadas: ${affected}.`
+  );
+  if (gs.checkWin?.()) return;
+  return;
+}
+
   if(p.type==='skinTeleport'){
     startTeleportOrMark(ball, gs, now, log); return;
   }
