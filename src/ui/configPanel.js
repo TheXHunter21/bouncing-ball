@@ -1,6 +1,12 @@
 import { loadConfig, saveConfig, resetConfig } from '../core/storage.js';
 
 export function bindUI(state, ctx){
+
+// 1) Añade estas refs junto a los demás querySelectors (arriba):
+const spawnImmSec = document.getElementById('spawnImmSec');
+const spawnImmSecVal = document.getElementById('spawnImmSecVal');
+
+
   const modal = document.getElementById('configModal');
   const btnOpen = document.getElementById('openConfig');
   const btnClose = document.getElementById('closeConfig');
@@ -14,9 +20,12 @@ export function bindUI(state, ctx){
   const spawnRate = document.getElementById('spawnRate');
   const spawnRateVal = document.getElementById('spawnRateVal');
 
-  // 🔥 NUEVO: invulnerabilidad inicial (s)
-  const spawnImmSec = document.getElementById('spawnImmSec');
-  const spawnImmSecVal = document.getElementById('spawnImmSecVal');
+  // 🆕 Delay inicial píldoras
+  const pillStartDelay = document.getElementById('pillStartDelay');
+  const pillStartDelayVal = document.getElementById('pillStartDelayVal');
+
+  // 🆕 Nivel inicial
+  const initialLevel = document.getElementById('initialLevel');
 
   const ids = name => document.getElementById(name);
   const w = {
@@ -33,8 +42,10 @@ export function bindUI(state, ctx){
   // Cargar config guardada
   const saved = loadConfig();
   if(saved){ Object.assign(state.config, saved); }
-  // valor por defecto si no existía
+  // defaults si faltan
   if (typeof state.config.spawnImmunitySec !== 'number') state.config.spawnImmunitySec = 0.7;
+  if (typeof state.config.initialPillDelaySec !== 'number') state.config.initialPillDelaySec = 1.0;
+  if (typeof state.config.initialLevel !== 'number') state.config.initialLevel = 5;
 
   function syncToInputs(){
     ballCount.value = state.config.ballCount;
@@ -42,12 +53,18 @@ export function bindUI(state, ctx){
     spawnRate.value = state.config.spawnRatePct;
     spawnRateVal.textContent = `${state.config.spawnRatePct}%`;
 
-    // invulnerabilidad
-    spawnImmSec.value = state.config.spawnImmunitySec;
-    spawnImmSecVal.textContent = `${Number(state.config.spawnImmunitySec).toFixed(1)}s`;
+    pillStartDelay.value = state.config.initialPillDelaySec;
+    pillStartDelayVal.textContent = `${Number(state.config.initialPillDelaySec).toFixed(1)}s`;
+
+    initialLevel.value = state.config.initialLevel;
 
     for(const k in state.config.weights){ if(w[k]) w[k].value = state.config.weights[k]; }
     for(const k in state.config.durations){ if(dur[k]) dur[k].value = state.config.durations[k]; }
+
+    // 2) Dentro de syncToInputs(), añade estas líneas:
+spawnImmSec.value = state.config.spawnImmunitySec;
+spawnImmSecVal.textContent = `${Number(state.config.spawnImmunitySec).toFixed(1)}s`;
+
   }
 
   function clampAndPull(){
@@ -55,12 +72,18 @@ export function bindUI(state, ctx){
     c.ballCount = Math.max(1, Math.min(50, Math.floor(+ballCount.value||3)));
     c.maxPills  = Math.max(0, Math.floor(+maxPills.value||20));
     c.spawnRatePct = Math.max(25, Math.min(300, Math.floor(+spawnRate.value||250)));
-    // clamp invulnerabilidad 0–20s
-    c.spawnImmunitySec = Math.max(0, Math.min(20, +spawnImmSec.value || 0));
-    spawnImmSecVal.textContent = `${c.spawnImmunitySec.toFixed(1)}s`;
+
+    c.initialPillDelaySec = Math.max(0, Math.min(20, +pillStartDelay.value || 0));
+    pillStartDelayVal.textContent = `${c.initialPillDelaySec.toFixed(1)}s`;
+
+    c.initialLevel = Math.max(1, Math.min(10, Math.floor(+initialLevel.value || 5)));
 
     for(const k in c.weights){ if(w[k]) c.weights[k] = Math.max(0, Math.floor(+w[k].value||0)); }
     for(const k in c.durations){ if(dur[k]) c.durations[k] = Math.max(1, Math.floor(+dur[k].value||1)); }
+    // 3) Dentro de clampAndPull(), añade:
+state.config.spawnImmunitySec = Math.max(0, Math.min(20, +spawnImmSec.value || 0));
+spawnImmSecVal.textContent = `${state.config.spawnImmunitySec.toFixed(1)}s`;
+
   }
 
   function open(){ syncToInputs(); modal.classList.add('show'); modal.setAttribute('aria-hidden','false'); }
@@ -71,13 +94,19 @@ export function bindUI(state, ctx){
     clampAndPull();
     saveConfig(state.config);
     state.log('CONFIG aplicada');
+    // Si cambiaste el nivel inicial, aplica al próximo reset/start:
+    // (no respawneamos aquí para no cortar una partida en curso)
     close();
   });
   btnReset?.addEventListener('click', ()=>{ resetConfig(); state.log('Config reseteada'); location.reload(); });
 
   // live feedback
   spawnRate.addEventListener('input', ()=>{ clampAndPull(); });
-  spawnImmSec.addEventListener('input', ()=>{ clampAndPull(); }); // 🔥
+  pillStartDelay.addEventListener('input', ()=>{ clampAndPull(); });
+  initialLevel.addEventListener('change', ()=>{ clampAndPull(); });
+  // 4) En los listeners (abajo), añade:
+spawnImmSec.addEventListener('input', () => { clampAndPull(); });
+
 
   Object.values(w).forEach(inp=>inp?.addEventListener('change', ()=>{ clampAndPull(); }));
   Object.values(dur).forEach(inp=>inp?.addEventListener('change', ()=>{ clampAndPull(); }));
@@ -85,3 +114,5 @@ export function bindUI(state, ctx){
   state.openConfig = open; state.closeConfig = close;
   syncToInputs();
 }
+
+

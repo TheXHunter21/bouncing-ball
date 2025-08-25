@@ -1,4 +1,4 @@
-import { LEVEL_START, BALL_INIT_RADIUS, randAngle, PILL_RADIUS } from '../constants.js';
+import { BALL_INIT_RADIUS, randAngle, PILL_RADIUS } from '../constants.js';
 import { moveAndBounce } from './systems/physics.js';
 import { collideBalls } from './systems/collisions.js';
 import { tickObstacle } from './systems/obstacle.js';
@@ -6,6 +6,7 @@ import { spawnTick, scheduleNextSpawn } from './systems/spawn.js';
 import { onConsumePill } from './pillsRegistry.js';
 import { tickFrenzy } from './systems/frenzy.js';
 import { tickTeleport } from './systems/teleport.js';
+import { radiusForLevel } from './growth.js';
 
 export function createInitialState(canvas) {
   return {
@@ -30,11 +31,15 @@ export function createInitialState(canvas) {
 
     nextSpawnAt:null,
 
-    // 🔥 NUEVO: spawnImmunitySec configurable (default 0.7s)
+    // ⚙️ Config
     config: {
-      ballCount:3, maxPills:20, spawnRatePct:250,
+      ballCount:3,
+      maxPills:20,
+      spawnRatePct:250,
       gameSpeed: 1.0,
       spawnImmunitySec: 0.7,
+      initialPillDelaySec: 1.0,   // << NUEVO
+      initialLevel: 5,            // << NUEVO (1–10)
       durations:{ boost:5, slow:5, ghost:5, edge:5, morph:8, obstacle:8 },
       weights:{
         blue:150, red:20, greenFast:15, greenSlow:15, cyanShield:25,
@@ -55,7 +60,7 @@ export function onResize(state, ctx) {
   const css = ctx._cssSize;
   state.R = (css/2) - 10;
   state.baseSpeed = state.R * 0.45;
-  state.defaultSpeed = state.baseSpeed;
+  state.defaultSpeed = state.baseSpeed; // velocidad base de pelotas
 }
 
 function randomNonBlueRed(){
@@ -67,7 +72,12 @@ function randomNonBlueRed(){
 
 export function spawnBalls(state, count) {
   state.balls.length=0;
-  const r0 = BALL_INIT_RADIUS;
+
+  // nivel inicial (clamp por seguridad)
+  const L0 = Math.max(1, Math.min(10, Math.floor(state.config.initialLevel ?? 5)));
+  // r baseline es el radio “conocido” en nivel 5 → ajustamos para L0
+  const r0 = radiusForLevel(L0, BALL_INIT_RADIUS, /*baselineLevel*/5);
+
   for(let i=0;i<count;i++){
     let pos, tries=0;
     do{
@@ -76,7 +86,7 @@ export function spawnBalls(state, count) {
     }while(tries<100 && state.balls.some(b=>Math.hypot(b.pos.x-pos.x,b.pos.y-pos.y)<(b.r+r0+8)));
     state.balls.push({
       id:`P${i+1}`, color:randomNonBlueRed(),
-      pos, vel:{x:0,y:0}, r:r0, level:LEVEL_START, alive:true,
+      pos, vel:{x:0,y:0}, r:r0, level:L0, alive:true,
 
       shield:false, ghostUntil:0, edgeGrowUntil:0,
       speedEffect:'none', speedEffectUntil:0,
@@ -89,15 +99,18 @@ export function startGame(state, now){
   if(state.started) return;
   state.started=true; state.paused=false;
 
-  const immMs = Math.max(0, Math.min(20000, (state.config.spawnImmunitySec ?? 0.7) * 1000));
+  const immMs   = Math.max(0, Math.min(20000, (state.config.spawnImmunitySec ?? 0.7) * 1000));
+  const pillMs  = Math.max(0, Math.min(20000, (state.config.initialPillDelaySec ?? 1.0) * 1000));
 
   for(const b of state.balls){
     const a=randAngle(); const v=state.defaultSpeed;
     b.vel.x=Math.cos(a)*v; b.vel.y=Math.sin(a)*v;
-    b.noCollideUntil = now + immMs;   // 🔥 usa config
+    b.noCollideUntil = now + immMs;
   }
-  state.log(`Juego iniciado (invulnerabilidad: ${(immMs/1000).toFixed(1)}s)`);
-  scheduleNextSpawn(state, now);
+
+  state.log(`Juego iniciado (invuln: ${(immMs/1000).toFixed(1)}s, píldoras en ${(pillMs/1000).toFixed(1)}s)`);
+  // Primera ventana de spawn respeta el delay inicial configurado (tiempo de juego)
+  scheduleNextSpawn(state, now, pillMs);
 }
 
 export function togglePause(state, clock){
