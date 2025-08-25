@@ -1,6 +1,6 @@
 export function renderScoreboard(state){
   const el = document.getElementById('scoreboard'); if(!el) return;
-  const now = state.started ? performance.now() : 0;
+  const now = state.started ? state.gameNow : 0; // << tiempo de juego
   el.innerHTML = state.balls.filter(b=>b.alive).map(b=>{
     const shield = b.shield ? ` <span style="color:#33cfff">🛡</span>` : '';
     const ghost  = (b.ghostUntil && now < b.ghostUntil) ? ` <span style="color:#fff">👻</span>` : '';

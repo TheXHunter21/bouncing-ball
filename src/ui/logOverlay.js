@@ -16,7 +16,8 @@ export function bindLog(state){
   }
 
   state.log = (msg, level='info')=>{
-    const t = state.started ? (performance.now()/1000) : 0;
+    // tiempo de juego (no corre en pausa y se escala por gameSpeed)
+    const t = state.gameNow/1000;
     logs.push({t, msg, level}); if(logs.length>900) logs.shift();
     if(overlay.style.display==='block') render();
   };
@@ -27,6 +28,5 @@ export function bindLog(state){
   btnClose?.addEventListener('click', toggle);
   btnClear?.addEventListener('click', ()=>{ logs.length=0; render(); });
 
-  // hotkey L se maneja en keys.js
   return { toggle };
 }

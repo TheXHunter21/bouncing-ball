@@ -1,4 +1,4 @@
-import { LEVEL_START, BALL_INIT_RADIUS, SPEED_MULT_DEFAULT, SPAWN_IMMUNITY_MS, randAngle, PILL_RADIUS } from '../constants.js';
+import { LEVEL_START, BALL_INIT_RADIUS, randAngle, PILL_RADIUS } from '../constants.js';
 import { moveAndBounce } from './systems/physics.js';
 import { collideBalls } from './systems/collisions.js';
 import { tickObstacle } from './systems/obstacle.js';
@@ -12,25 +12,29 @@ export function createInitialState(canvas) {
     canvas,
     R: 0,
     PILL_RADIUS,
+
     borderColor: '#222',
-    // flags
     started:false, paused:false,
-    // velocidad
-    baseSpeed:0, defaultSpeed:0,
-    // entidades
+
+    baseSpeed:0,
+    defaultSpeed:0,
+
+    gameNow: 0,
+
     balls:[],
     pills:[],
     obstacle:{ active:false, until:0, r:0 },
-    // morph
+
     morphType:null, morphUntil:0,
-    // teleport
     teleportMarkId:null, teleportPair:null,
-    // spawner
+
     nextSpawnAt:null,
-    // config runtime
+
+    // 🔥 NUEVO: spawnImmunitySec configurable (default 0.7s)
     config: {
       ballCount:3, maxPills:20, spawnRatePct:250,
-      speedMult:SPEED_MULT_DEFAULT,
+      gameSpeed: 1.0,
+      spawnImmunitySec: 0.7,
       durations:{ boost:5, slow:5, ghost:5, edge:5, morph:8, obstacle:8 },
       weights:{
         blue:150, red:20, greenFast:15, greenSlow:15, cyanShield:25,
@@ -38,12 +42,12 @@ export function createInitialState(canvas) {
         grayObstacle:10, fuchsiaHalf:3, skinTeleport:3
       }
     },
-    // helpers asignados desde main/ui
+
     log:(m)=>console.log('[LOG]',m),
     renderScoreboard:null,
     setTimeText:null,
     getBall(id){ return this.balls.find(b=>b.id===id); },
-    checkWin:null, // set en main si quieres
+    checkWin:null,
   };
 }
 
@@ -51,7 +55,7 @@ export function onResize(state, ctx) {
   const css = ctx._cssSize;
   state.R = (css/2) - 10;
   state.baseSpeed = state.R * 0.45;
-  state.defaultSpeed = state.baseSpeed * state.config.speedMult;
+  state.defaultSpeed = state.baseSpeed;
 }
 
 function randomNonBlueRed(){
@@ -73,7 +77,9 @@ export function spawnBalls(state, count) {
     state.balls.push({
       id:`P${i+1}`, color:randomNonBlueRed(),
       pos, vel:{x:0,y:0}, r:r0, level:LEVEL_START, alive:true,
-      shield:false, ghostUntil:0, edgeGrowUntil:0, speedEffect:'none', speedEffectUntil:0,
+
+      shield:false, ghostUntil:0, edgeGrowUntil:0,
+      speedEffect:'none', speedEffectUntil:0,
       dupNext:false, teleportMarked:false, noCollideUntil:0
     });
   }
@@ -82,11 +88,15 @@ export function spawnBalls(state, count) {
 export function startGame(state, now){
   if(state.started) return;
   state.started=true; state.paused=false;
+
+  const immMs = Math.max(0, Math.min(20000, (state.config.spawnImmunitySec ?? 0.7) * 1000));
+
   for(const b of state.balls){
     const a=randAngle(); const v=state.defaultSpeed;
-    b.vel.x=Math.cos(a)*v; b.vel.y=Math.sin(a)*v; b.noCollideUntil=now+SPAWN_IMMUNITY_MS;
+    b.vel.x=Math.cos(a)*v; b.vel.y=Math.sin(a)*v;
+    b.noCollideUntil = now + immMs;   // 🔥 usa config
   }
-  state.log('Juego iniciado');
+  state.log(`Juego iniciado (invulnerabilidad: ${(immMs/1000).toFixed(1)}s)`);
   scheduleNextSpawn(state, now);
 }
 
@@ -94,48 +104,42 @@ export function togglePause(state, clock){
   if(!state.started) return;
   state.paused = !state.paused;
   if(state.paused) clock.pause(); else clock.resume();
+  state.renderScoreboard?.();
   state.log(state.paused?'Pausa':'Reanudar');
 }
 
 export function resetGame(state, ctx){
-  // 1) cortar el juego YA
-  state.started = false;
-  state.paused = false;
+  state.started=false;
+  state.paused=false;
+  state.gameNow = 0;
 
-  // 2) limpiar todo lo que puede arrastrar efectos de la partida anterior
-  state.pills.length = 0;
-  state.nextSpawnAt = null;
+  state.pills.length=0;
+  state.nextSpawnAt=null;
 
-  state.obstacle.active = false;
-  state.obstacle.until = 0;
-  state.obstacle.r = 0;
+  state.obstacle.active=false;
+  state.obstacle.until=0;
+  state.obstacle.r=0;
 
-  state.morphType = null;
-  state.morphUntil = 0;
-  state.borderColor = '#222';
+  state.morphType=null;
+  state.morphUntil=0;
+  state.borderColor='#222';
 
-  state.teleportMarkId = null;
-  state.teleportPair = null;
+  state.teleportMarkId=null;
+  state.teleportPair=null;
 
-  // 3) recalcular velocidad base por si cambió el tamaño del canvas/config
   onResize(state, ctx);
-
-  // 4) respawnear pelotas desde cero (nivel 5 garantizado)
   spawnBalls(state, state.config.ballCount);
 
-  // 5) HUD inmediato (evita ver niveles viejos)
   state.setTimeText?.('0.00');
   state.renderScoreboard?.();
 
   state.log('Juego reiniciado');
 }
 
-
-export function updateGame(state, dt, now){
+export function updateGame(state, dtScaled, now){
   if(!state.started || state.paused) return;
 
-  // tiempo HUD
-  state.setTimeText?.(((now)/1000).toFixed(2));
+  state.setTimeText?.((now/1000).toFixed(2));
 
   // timers
   tickFrenzy(state, now, state.log);
@@ -146,7 +150,7 @@ export function updateGame(state, dt, now){
   spawnTick(state, now, state.log);
 
   // física y colisiones
-  moveAndBounce(state, dt, now, state.log);
+  moveAndBounce(state, dtScaled, now, state.log);
   collideBalls(state, now, state.log);
 
   // pills pickup
@@ -164,6 +168,5 @@ export function updateGame(state, dt, now){
     if(consumed) state.pills.splice(i,1);
   }
 
-  // gana por tamaño 100% o último vivo
   if(state.checkWin?.()) return;
 }

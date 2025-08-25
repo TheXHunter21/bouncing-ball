@@ -42,3 +42,10 @@ small.hint{opacity:.8}
 .dur{display:flex;align-items:center;gap:6px}
 .dur label{font-size:12px;opacity:.8}
 .w{width:90px}.s{width:70px}
+
+.speed-control{
+  display:flex; align-items:center; gap:8px; margin-left:auto;
+  background:#0b1324; padding:6px 10px; border-radius:10px; box-shadow:0 1px 6px #0008;
+}
+.speed-control label{font-size:12px; opacity:.9}
+.speed-control input[type="range"]{width:160px}

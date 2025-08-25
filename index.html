@@ -14,6 +14,13 @@
       <button id="pause" disabled>Pausar</button>
       <button id="reset">Reiniciar</button>
       <button id="toggleLog" class="log-toggle">Logs</button>
+
+      <!-- 🔥 NUEVO: control de velocidad global fuera del modal -->
+      <div class="speed-control">
+        <label for="gameSpeedLive">Velocidad (x)</label>
+        <input id="gameSpeedLive" type="range" min="0.25" max="4" step="0.25" value="1">
+        <span id="gameSpeedLiveVal">x1.00</span>
+      </div>
     </div>
 
     <div class="hud">
@@ -59,15 +66,16 @@
             <span id="spawnRateVal">250%</span>
           </div>
         </div>
+        <!-- OJO: quitamos la velocidad del juego del modal -->
+         <div class="field">
+  <label>Invulnerabilidad inicial (s)</label>
+  <div class="row">
+    <input id="spawnImmSec" type="range" min="0" max="20" step="0.1" value="0.7"/>
+    <span id="spawnImmSecVal">0.7s</span>
+  </div>
+  <small class="hint">Tiempo sin colisiones entre pelotas al iniciar (0–20s).</small>
+</div>
 
-        <div class="field">
-          <label>Velocidad base (x)</label>
-          <div class="row">
-            <input id="speedMult" type="range" min="0.5" max="4" value="2.25" step="0.25"/>
-            <span id="speedMultVal">x2.25</span>
-          </div>
-          <small class="hint">Afecta la velocidad inicial y base de todas.</small>
-        </div>
       </div>
 
       <div class="sep"></div>

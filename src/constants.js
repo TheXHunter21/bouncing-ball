@@ -1,10 +1,8 @@
 export const LEVEL_START = 5;
-export const BALL_INIT_RADIUS = 25;     // radio inicial
-export const PILL_RADIUS = 16;          // rombos
+export const BALL_INIT_RADIUS = 25;
+export const PILL_RADIUS = 16;
 export const BORDER_THICKNESS = 4;
 export const INNER_PADDING = 10;
-export const SPEED_MULT_DEFAULT = 2.25; // x base
-export const SPAWN_IMMUNITY_MS = 700;
 
 export const TAU = Math.PI * 2;
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));

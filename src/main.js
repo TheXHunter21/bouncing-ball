@@ -8,6 +8,7 @@ import { bindKeys } from './input/keys.js';
 import { bindUI } from './ui/configPanel.js';
 import { bindLog } from './ui/logOverlay.js';
 import { renderScoreboard } from './ui/scoreboard.js';
+import { bindSpeedControl } from './ui/speedControl.js';  // 🔥 nuevo
 
 const canvas = document.getElementById('game');
 const ctx = setupCanvas(canvas);
@@ -20,18 +21,21 @@ onResize(state, ctx);
 spawnBalls(state, state.config.ballCount);
 state.renderScoreboard();
 
-// log overlay
+// logs
 const logBindings = bindLog(state);
 state._toggleLogs = logBindings.toggle;
 
-// UI config
+// config modal
 bindUI(state, ctx);
 
-// time label
+// 🔥 velocidad global in-game (después de cargar config)
+bindSpeedControl(state);
+
+// HUD tiempo
 const timeEl = document.getElementById('time');
 state.setTimeText = (t)=>{ timeEl.textContent = t; };
 
-// win conditions
+// win
 state.checkWin = ()=>{
   const alive = state.balls.filter(b=>b.alive);
   if(alive.length===0){ state.started=false; state.log('Todas murieron. Sin ganador.'); return true; }
@@ -40,14 +44,16 @@ state.checkWin = ()=>{
   return false;
 };
 
-// reloj y engine
 const clock = new Clock();
 const engine = new Engine({
-  update: (dt)=> updateGame(state, dt, clock.now()),
-  draw: ()=> drawWorld(ctx, state, clock.now())
+  update: (dtReal) => {
+    const dtScaled = dtReal * state.config.gameSpeed;
+    if(state.started && !state.paused) state.gameNow += dtScaled * 1000;
+    updateGame(state, dtScaled, state.gameNow);
+  },
+  draw: () => drawWorld(ctx, state, state.gameNow)
 });
 engine.start();
 
-// botones/teclas
-bindButtons(state, ctx, clock, logBindings);
+bindButtons(state, ctx, clock);
 bindKeys(state, ctx, clock);

@@ -13,8 +13,10 @@ export function bindUI(state, ctx){
   const maxPills = document.getElementById('maxPills');
   const spawnRate = document.getElementById('spawnRate');
   const spawnRateVal = document.getElementById('spawnRateVal');
-  const speedMult = document.getElementById('speedMult');
-  const speedMultVal = document.getElementById('speedMultVal');
+
+  // 🔥 NUEVO: invulnerabilidad inicial (s)
+  const spawnImmSec = document.getElementById('spawnImmSec');
+  const spawnImmSecVal = document.getElementById('spawnImmSecVal');
 
   const ids = name => document.getElementById(name);
   const w = {
@@ -23,51 +25,63 @@ export function bindUI(state, ctx){
     turquoiseEdge: ids('wTurq'), pinkDup: ids('wPink'), grayObstacle: ids('wGray'),
     fuchsiaHalf: ids('wFuchsia'), skinTeleport: ids('wSkin')
   };
-  const d = {
+  const dur = {
     boost: ids('durGreenFast'), slow: ids('durGreenSlow'), ghost: ids('durWhite'),
     edge: ids('durTurq'), morph: ids('durYellow'), obstacle: ids('durGray')
   };
 
   // Cargar config guardada
   const saved = loadConfig();
-  if(saved){
-    Object.assign(state.config, saved);
-  }
-  // sincronizar a inputs
+  if(saved){ Object.assign(state.config, saved); }
+  // valor por defecto si no existía
+  if (typeof state.config.spawnImmunitySec !== 'number') state.config.spawnImmunitySec = 0.7;
+
   function syncToInputs(){
     ballCount.value = state.config.ballCount;
     maxPills.value = state.config.maxPills;
-    spawnRate.value = state.config.spawnRatePct; spawnRateVal.textContent = `${state.config.spawnRatePct}%`;
-    speedMult.value = state.config.speedMult; speedMultVal.textContent = `x${state.config.speedMult.toFixed(2)}`;
+    spawnRate.value = state.config.spawnRatePct;
+    spawnRateVal.textContent = `${state.config.spawnRatePct}%`;
+
+    // invulnerabilidad
+    spawnImmSec.value = state.config.spawnImmunitySec;
+    spawnImmSecVal.textContent = `${Number(state.config.spawnImmunitySec).toFixed(1)}s`;
+
     for(const k in state.config.weights){ if(w[k]) w[k].value = state.config.weights[k]; }
-    for(const k in state.config.durations){ if(d[k]) d[k].value = state.config.durations[k]; }
+    for(const k in state.config.durations){ if(dur[k]) dur[k].value = state.config.durations[k]; }
   }
+
   function clampAndPull(){
     const c = state.config;
     c.ballCount = Math.max(1, Math.min(50, Math.floor(+ballCount.value||3)));
     c.maxPills  = Math.max(0, Math.floor(+maxPills.value||20));
     c.spawnRatePct = Math.max(25, Math.min(300, Math.floor(+spawnRate.value||250)));
-    c.speedMult = Math.max(0.5, Math.min(4, +speedMult.value||2.25));
-    spawnRateVal.textContent=`${c.spawnRatePct}%`; speedMultVal.textContent=`x${c.speedMult.toFixed(2)}`;
+    // clamp invulnerabilidad 0–20s
+    c.spawnImmunitySec = Math.max(0, Math.min(20, +spawnImmSec.value || 0));
+    spawnImmSecVal.textContent = `${c.spawnImmunitySec.toFixed(1)}s`;
+
     for(const k in c.weights){ if(w[k]) c.weights[k] = Math.max(0, Math.floor(+w[k].value||0)); }
-    for(const k in c.durations){ if(d[k]) c.durations[k] = Math.max(1, Math.floor(+d[k].value||1)); }
+    for(const k in c.durations){ if(dur[k]) c.durations[k] = Math.max(1, Math.floor(+dur[k].value||1)); }
   }
+
   function open(){ syncToInputs(); modal.classList.add('show'); modal.setAttribute('aria-hidden','false'); }
   function close(){ modal.classList.remove('show'); modal.setAttribute('aria-hidden','true'); }
 
   btnOpen?.addEventListener('click', open);
-  btnClose?.addEventListener('click', ()=>{ clampAndPull(); saveConfig(state.config); state.log('CONFIG aplicada'); close(); state.defaultSpeed = state.baseSpeed * state.config.speedMult; });
+  btnClose?.addEventListener('click', ()=>{
+    clampAndPull();
+    saveConfig(state.config);
+    state.log('CONFIG aplicada');
+    close();
+  });
   btnReset?.addEventListener('click', ()=>{ resetConfig(); state.log('Config reseteada'); location.reload(); });
 
-  // inputs live
+  // live feedback
   spawnRate.addEventListener('input', ()=>{ clampAndPull(); });
-  speedMult.addEventListener('input', ()=>{ if(!state.started){ clampAndPull(); } else { speedMult.value = state.config.speedMult; } });
+  spawnImmSec.addEventListener('input', ()=>{ clampAndPull(); }); // 🔥
+
   Object.values(w).forEach(inp=>inp?.addEventListener('change', ()=>{ clampAndPull(); }));
-  Object.values(d).forEach(inp=>inp?.addEventListener('change', ()=>{ clampAndPull(); }));
+  Object.values(dur).forEach(inp=>inp?.addEventListener('change', ()=>{ clampAndPull(); }));
 
-  // expone helpers a otros módulos
   state.openConfig = open; state.closeConfig = close;
-
-  // inicial
   syncToInputs();
 }
