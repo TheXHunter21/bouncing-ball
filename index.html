@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Battle Balls — píldora fucsia (mitad global)</title>
+<title>Battle Balls — teletransporte (piel) + pesos x1</title>
 <style>
   :root{color-scheme:light dark}
   body{margin:0;font-family:system-ui,Segoe UI,Roboto,sans-serif;display:grid;place-items:center;min-height:100dvh;gap:12px}
@@ -113,53 +113,57 @@
         <div class="rows">
           <div class="row">
             <span class="name">Azul (+nivel)</span>
-            <input class="w" id="wBlue" type="number" step="5" min="0" value="150">
+            <input class="w" id="wBlue" type="number" step="1" min="0" value="150">
           </div>
           <div class="row">
             <span class="name">Roja (−nivel)</span>
-            <input class="w" id="wRed" type="number" step="5" min="0" value="20">
+            <input class="w" id="wRed" type="number" step="1" min="0" value="20">
           </div>
           <div class="row">
             <span class="name">Verde claro (2×)</span>
-            <input class="w" id="wGreenFast" type="number" step="5" min="0" value="15">
+            <input class="w" id="wGreenFast" type="number" step="1" min="0" value="15">
             <span class="dur"><label>seg</label><input class="s" id="durGreenFast" type="number" min="1" step="1" value="5"></span>
           </div>
           <div class="row">
             <span class="name">Verde oscuro (0.5×)</span>
-            <input class="w" id="wGreenSlow" type="number" step="5" min="0" value="15">
+            <input class="w" id="wGreenSlow" type="number" step="1" min="0" value="15">
             <span class="dur"><label>seg</label><input class="s" id="durGreenSlow" type="number" min="1" step="1" value="5"></span>
           </div>
           <div class="row">
             <span class="name">Celeste (escudo)</span>
-            <input class="w" id="wCyan" type="number" step="5" min="0" value="25">
+            <input class="w" id="wCyan" type="number" step="1" min="0" value="25">
           </div>
           <div class="row">
             <span class="name">Amarilla (frenesí)</span>
-            <input class="w" id="wYellow" type="number" step="5" min="0" value="5">
+            <input class="w" id="wYellow" type="number" step="1" min="0" value="5">
             <span class="dur"><label>seg</label><input class="s" id="durYellow" type="number" min="2" step="1" value="8"></span>
           </div>
           <div class="row">
             <span class="name">Blanca (fantasma)</span>
-            <input class="w" id="wWhite" type="number" step="5" min="0" value="10">
+            <input class="w" id="wWhite" type="number" step="1" min="0" value="10">
             <span class="dur"><label>seg</label><input class="s" id="durWhite" type="number" min="1" step="1" value="5"></span>
           </div>
           <div class="row">
             <span class="name">Turquesa (bordes +)</span>
-            <input class="w" id="wTurq" type="number" step="5" min="0" value="10">
+            <input class="w" id="wTurq" type="number" step="1" min="0" value="10">
             <span class="dur"><label>seg</label><input class="s" id="durTurq" type="number" min="1" step="1" value="5"></span>
           </div>
           <div class="row">
             <span class="name">Rosa (duplicador)</span>
-            <input class="w" id="wPink" type="number" step="5" min="0" value="10">
+            <input class="w" id="wPink" type="number" step="1" min="0" value="10">
           </div>
           <div class="row">
             <span class="name">Gris (obstáculo)</span>
-            <input class="w" id="wGray" type="number" step="5" min="0" value="10">
+            <input class="w" id="wGray" type="number" step="1" min="0" value="10">
             <span class="dur"><label>seg</label><input class="s" id="durGray" type="number" min="2" step="1" value="8"></span>
           </div>
           <div class="row">
             <span class="name">Fucsia (mitad global)</span>
-            <input class="w" id="wFuchsia" type="number" step="5" min="0" value="3">
+            <input class="w" id="wFuchsia" type="number" step="1" min="0" value="3">
+          </div>
+          <div class="row">
+            <span class="name">Piel (teletransporte)</span>
+            <input class="w" id="wSkin" type="number" step="1" min="0" value="3">
           </div>
         </div>
       </div>
@@ -215,6 +219,7 @@
   const wPink = document.getElementById('wPink');
   const wGray = document.getElementById('wGray');
   const wFuchsia = document.getElementById('wFuchsia');
+  const wSkin = document.getElementById('wSkin');
 
   const durGreenFast = document.getElementById('durGreenFast');
   const durGreenSlow = document.getElementById('durGreenSlow');
@@ -224,7 +229,7 @@
   const durGray = document.getElementById('durGray');
 
   // Local storage
-  const CFG_KEY = 'battleballs_config_v4'; // mantenemos v4 y añadimos la fucsia
+  const CFG_KEY = 'battleballs_config_v5';
 
   // State
   let state = 'idle'; // 'idle' | 'running' | 'ended'
@@ -235,7 +240,6 @@
   let speedMult = 2.25; // configurable (x)
   let startTime = 0, elapsed = 0, rafId = null;
 
-  // Helper: game time (para auras persistentes en pausa)
   const gameNowMs = () => paused ? pauseStartMs : performance.now();
 
   // Pills
@@ -249,7 +253,7 @@
   const spawnWeights = {
     blue:150, red:20, greenFast:15, greenSlow:15, cyanShield:25,
     yellowMorph:5, whiteGhost:10, turquoiseEdge:10, pinkDup:10, grayObstacle:10,
-    fuchsiaHalf:3
+    fuchsiaHalf:3, skinTeleport:3
   };
 
   // Durations (sec)
@@ -264,7 +268,10 @@
   // Obstacle (gray)
   const obstacle = { active:false, until:0, r:0 };
 
-  // Durations (ms)
+  // Teletransporte (piel)
+  let teleportMarkId = null; // id de la primera marcada
+  let teleportPair = null;   // {aId,bId,swapAt,nextBlinkAt,blinkOn,blinkCount}
+
   const ms = s => s*1000;
 
   // Morph state
@@ -299,7 +306,7 @@
   function randomAngle(){return Math.random()*Math.PI*2}
   function scheduleNextSpawn(now=performance.now(), delayMs){
     if(typeof delayMs==='number'){ nextSpawnAt = now+delayMs; return; }
-    const factor = 100/spawnRatePct; // 200% => mitad
+    const factor = 100/spawnRatePct;
     const base = randomRange(1500,4000);
     nextSpawnAt = now + base*factor;
   }
@@ -311,12 +318,11 @@
     }
   }
 
-  // Pill names/colors
   const PILL_NAMES = {
     blue:'azul', red:'roja', greenFast:'verde claro (2×)', greenSlow:'verde oscuro (0.5×)',
     cyanShield:'celeste (escudo)', yellowMorph:'amarilla (frenesí)', whiteGhost:'blanca (fantasma)',
     turquoiseEdge:'turquesa (bordes +)', pinkDup:'rosa (duplicador)', grayObstacle:'gris (obstáculo)',
-    fuchsiaHalf:'fucsia (mitad global)'
+    fuchsiaHalf:'fucsia (mitad global)', skinTeleport:'piel (teletransporte)'
   };
   function pillColor(type){
     return type==='blue'?'#1877F2':
@@ -330,9 +336,10 @@
            type==='pinkDup'?'#FF69B4':
            type==='grayObstacle'?'#666':
            type==='fuchsiaHalf'?'#a4195b':
+           type==='skinTeleport'?'#f4c2a1':
            '#888';
   }
-  const MORPH_CHOICES = ['blue','red','greenFast','greenSlow','cyanShield','whiteGhost','turquoiseEdge','pinkDup','grayObstacle','fuchsiaHalf'];
+  const MORPH_CHOICES = ['blue','red','greenFast','greenSlow','cyanShield','whiteGhost','turquoiseEdge','pinkDup','grayObstacle','fuchsiaHalf','skinTeleport'];
 
   // Growth table
   function pctForLevel(level){
@@ -415,6 +422,56 @@
     return false;
   }
 
+  // Teletransporte helpers
+  function getBallById(id){ return balls.find(x=>x.id===id); }
+
+  function beginTeleportPair(aId,bId, now){
+    teleportPair = {
+      aId, bId,
+      swapAt: now + ms(1.6),
+      nextBlinkAt: now + ms(0.4),
+      blinkOn: false,
+      blinkCount: 0
+    };
+    const A=getBallById(aId), B=getBallById(bId);
+    if(A) A.teleportMarked = true;
+    if(B) B.teleportMarked = true;
+    teleportMarkId = null; // ya no hay "marcado en espera"
+    addLog(`${A.id} ↔ ${B.id}: teletransporte en 1.6s (4 parpadeos).`,'warn');
+  }
+
+  function handleTeleportTimers(now){
+    // limpiar marca si el marcado murió
+    if(teleportMarkId){
+      const m=getBallById(teleportMarkId);
+      if(!m || !m.alive){ teleportMarkId=null; if(m) m.teleportMarked=false; addLog(`Marca piel cancelada (muerte)`, 'warn'); }
+    }
+    if(!teleportPair) return;
+    const A=getBallById(teleportPair.aId), B=getBallById(teleportPair.bId);
+
+    // cancelar si alguno murió
+    if(!A?.alive || !B?.alive){
+      if(A) A.teleportMarked=false; if(B) B.teleportMarked=false;
+      teleportPair=null; addLog(`Teletransporte cancelado (muerte de participante)`, 'warn'); return;
+    }
+
+    if(now >= teleportPair.swapAt){
+      // swap posiciones (velocidad se mantiene)
+      const ax=A.pos.x, ay=A.pos.y;
+      A.pos.x=B.pos.x; A.pos.y=B.pos.y;
+      B.pos.x=ax; B.pos.y=ay;
+      A.teleportMarked=false; B.teleportMarked=false;
+      addLog(`${A.id} ⇄ ${B.id} teletransportados.`,'warn');
+      teleportPair=null;
+      return;
+    }
+    if(now >= teleportPair.nextBlinkAt){
+      teleportPair.blinkOn = !teleportPair.blinkOn;
+      teleportPair.blinkCount++;
+      teleportPair.nextBlinkAt += ms(0.4);
+    }
+  }
+
   // World
   function resize(){
     const dpr = Math.max(1, window.devicePixelRatio||1);
@@ -426,7 +483,6 @@
   }
 
   function clampInputs(){
-    // básicos
     let n=Number(ballCountInput.value); if(!Number.isFinite(n)) n=3;
     ballCount=Math.max(1,Math.min(50,Math.floor(n))); ballCountInput.value=String(ballCount);
 
@@ -442,7 +498,6 @@
     speedMultVal.textContent = `x${speedMult.toFixed(2)}`;
     defaultSpeed = baseSpeed * speedMult;
 
-    // duraciones inline
     durations.boost = Math.max(1, Math.floor(Number(durGreenFast.value)||5));
     durations.slow  = Math.max(1, Math.floor(Number(durGreenSlow.value)||5));
     durations.ghost = Math.max(1, Math.floor(Number(durWhite.value)||5));
@@ -450,7 +505,6 @@
     durations.morph = Math.max(2, Math.floor(Number(durYellow.value)||8));
     durations.obstacle = Math.max(2, Math.floor(Number(durGray.value)||8));
 
-    // pesos
     spawnWeights.blue = Math.max(0, Math.floor(Number(wBlue.value)||0));
     spawnWeights.red = Math.max(0, Math.floor(Number(wRed.value)||0));
     spawnWeights.greenFast = Math.max(0, Math.floor(Number(wGreenFast.value)||0));
@@ -462,6 +516,7 @@
     spawnWeights.pinkDup = Math.max(0, Math.floor(Number(wPink.value)||0));
     spawnWeights.grayObstacle = Math.max(0, Math.floor(Number(wGray.value)||0));
     spawnWeights.fuchsiaHalf = Math.max(0, Math.floor(Number(wFuchsia.value)||0));
+    spawnWeights.skinTeleport = Math.max(0, Math.floor(Number(wSkin.value)||0));
   }
 
   function updateScoreboard(){
@@ -471,7 +526,8 @@
       const ghost  = (b.ghostUntil && now < b.ghostUntil) ? ` <span style="color:#fff">👻</span>` : '';
       const edge   = (b.edgeGrowUntil && now < b.edgeGrowUntil) ? ` <span style="color:#00D1B2">✨</span>` : '';
       const dup    = b.dupNext ? ` <span style="color:#FF69B4">×2</span>` : '';
-      return `<span class="badge" style="color:${b.color};border:1px solid ${b.color}">${b.id}: Nivel ${b.level}${shield}${ghost}${edge}${dup}</span>`;
+      const tp     = b.teleportMarked ? ` <span style="color:#f4c2a1">⇄</span>` : '';
+      return `<span class="badge" style="color:${b.color};border:1px solid ${b.color}">${b.id}: Nivel ${b.level}${shield}${ghost}${edge}${dup}${tp}</span>`;
     }).join('');
   }
 
@@ -512,10 +568,32 @@
     wPink.value = spawnWeights.pinkDup;
     wGray.value = spawnWeights.grayObstacle;    durGray.value = durations.obstacle;
     wFuchsia.value = spawnWeights.fuchsiaHalf;
+    wSkin.value = spawnWeights.skinTeleport;
+  }
+
+  // Fucsia helpers
+  function forceDownTo(ball, targetLevel, now, opts = {}) {
+    const breakShieldBlocks = opts.breakShieldBlocks ?? true;
+    const ignoreGhost = opts.ignoreGhost ?? true;
+    while (ball.alive && ball.level > targetLevel) {
+      if (ball.shield) {
+        ball.shield = false;
+        addLog(`${ball.id}: ESCUDO roto por fucsia`, 'warn');
+        updateScoreboard();
+        if (breakShieldBlocks) break;
+      }
+      if (!ignoreGhost && isGhost(ball, now)) {
+        addLog(`${ball.id}: fantasma ignora fucsia`,'info');
+        break;
+      }
+      applyShrinkStep(ball, 'Fucsia');
+      if (ball.level <= 0) break;
+    }
   }
 
   function init(){
     paused=false; pauseAccumMs=0; morphType=null; morphUntil=0;
+    teleportMarkId=null; teleportPair=null;
     logs.length=0;
 
     loadConfig();
@@ -523,7 +601,6 @@
     syncInputsFromState();
     clampInputs();
 
-    // Balls (radio inicial 25) separados
     balls.length=0; const R_INIT=25;
     for(let i=0;i<ballCount;i++){
       const id=`P${i+1}`, color=randomNonBlueRedColor();
@@ -534,7 +611,8 @@
       }while(tries<100 && balls.some(b=>Math.hypot(b.pos.x-pos.x,b.pos.y-pos.y)<(b.r+R_INIT+8)));
       balls.push({
         id,color,pos,vel:{x:0,y:0},r:R_INIT,level:LEVEL_START,alive:true,
-        speedEffect:'none',speedEffectUntil:0,noCollideUntil:0,shield:false,ghostUntil:0,edgeGrowUntil:0,dupNext:false
+        speedEffect:'none',speedEffectUntil:0,noCollideUntil:0,shield:false,ghostUntil:0,edgeGrowUntil:0,dupNext:false,
+        teleportMarked:false
       });
       addLog(`${id} listo (nivel ${LEVEL_START})`,'info');
     }
@@ -573,34 +651,14 @@
     return false;
   }
 
- function forceDownTo(ball, targetLevel, now, opts = {}) {
-  // Por defecto: fucsia ignora fantasma; el escudo rompe y BLOQUEA para "otros".
-  const breakShieldBlocks = opts.breakShieldBlocks ?? true;
-  const ignoreGhost = opts.ignoreGhost ?? true;
-
-  while (ball.alive && ball.level > targetLevel) {
-    if (ball.shield) {
-      ball.shield = false;
-      addLog(`${ball.id}: ESCUDO roto por fucsia`, 'warn');
-      updateScoreboard();
-      if (breakShieldBlocks) break;  // otros: escudo te salva del efecto
-      // self con duplicador: NO bloquea, continúa para aplicar la bajada
-    }
-    if (!ignoreGhost && isGhost(ball, now)) {
-      addLog(`${ball.id}: fantasma ignora fucsia`, 'info');
-      break;
-    }
-    applyShrinkStep(ball, 'Fucsia');
-    if (ball.level <= 0) break;
-  }
-}
-
-
   function update(dt, now){
     if(state==='running' && !paused){
       elapsed=(now-startTime-pauseAccumMs)/1000; timeEl.textContent=elapsed.toFixed(2);
     }
     if(state!=='running' || paused) return;
+
+    // timers especiales
+    handleTeleportTimers(now);
 
     if(morphType && now>=morphUntil){
       for(const p of pills){ if(p.originalType){ p.type=p.originalType; p.name=PILL_NAMES[p.originalType]; delete p.originalType; } }
@@ -617,7 +675,7 @@
       else { scheduleNextSpawn(now, 800); }
     }
 
-    // Balls movimiento
+    // Movimiento + colisiones
     for(const b of balls){
       if(!b.alive) continue;
       const targetSpeed=effectiveSpeed(b, now); applySpeedToVelocity(b, targetSpeed);
@@ -635,7 +693,6 @@
           let vx, vy;
           do{ const a=randomAngle(); vx=Math.cos(a)*targetSpeed; vy=Math.sin(a)*targetSpeed; }while((vx*nx0 + vy*ny0) <= 0);
           b.vel.x=vx; b.vel.y=vy;
-
           if(b.edgeGrowUntil && now < b.edgeGrowUntil){
             applyGrowthStep(b, 'Rebote obstáculo'); if (checkWinConditions()) return;
           }
@@ -687,7 +744,7 @@
       }
     }
 
-    // píldoras
+    // Píldoras
     for(let pi=pills.length-1; pi>=0; pi--){
       const p=pills[pi]; let consumed=false;
       for(const b of balls){
@@ -732,41 +789,50 @@
           else if(p.type==='grayObstacle'){
             const sec = durations.obstacle * times; spawnObstacle(now, sec);
           }
-          else if (p.type==='fuchsiaHalf'){
-  // Duplicador ya no multiplica; hace que también se afecte el que la comió
-  const hadDup = b.dupNext === true;
-  b.dupNext = false;
-
-  const sizeMid = Math.floor(b.level / 2);
-  let affected = 0;
-
-  // Afectar a los DEMÁS (escudo rompe y salva; fantasma no protege)
-  for (const other of balls) {
-    if (!other.alive || other === b) continue;
-    if (other.level > sizeMid) {
-      if (other.shield) {
-        other.shield = false;
-        addLog(`${other.id}: ESCUDO bloqueó fucsia (objetivo ${sizeMid})`, 'warn');
-        updateScoreboard();
-        continue; // protegido
-      }
-      // ignora ghost en fucsia
-      forceDownTo(other, sizeMid, now, { breakShieldBlocks: true, ignoreGhost: true });
-      affected++;
-    }
-  }
-
-  // Si tenía duplicador, TAMBIÉN baja el que la comió (ignora escudo/ghost)
-  if (hadDup && b.level > sizeMid) {
-    forceDownTo(b, sizeMid, now, { breakShieldBlocks: false, ignoreGhost: true });
-    addLog(`${b.id} tenía duplicador: también baja a ${sizeMid}.`, 'warn');
-  } else if (hadDup) {
-    addLog(`${b.id} tenía duplicador pero ya estaba ≤ ${sizeMid}.`, 'info');
-  }
-
-  addLog(`${b.id} activó FUCSIA → tamañoMedio ${sizeMid}. Afectadas: ${affected}.`, 'warn');
-  if (checkWinConditions()) return;
-}
+          else if(p.type==='fuchsiaHalf'){
+            if(times>1) addLog(`${b.id}: duplicador no agrega efecto extra a Fucsia.`,'warn');
+            const sizeMid = Math.floor(b.level / 2);
+            let affected = 0;
+            for(const other of balls){
+              if(!other.alive || other===b) continue;
+              if(other.level > sizeMid){
+                if (other.shield) {
+                  other.shield=false; addLog(`${other.id}: ESCUDO bloqueó fucsia (objetivo ${sizeMid})`,'warn'); updateScoreboard();
+                } else {
+                  forceDownTo(other, sizeMid, now, { breakShieldBlocks:true, ignoreGhost:true });
+                  affected++;
+                }
+              }
+            }
+            // duplicador “en contra”: también baja el propio
+            if (times>1 && b.level > sizeMid){
+              forceDownTo(b, sizeMid, now, { breakShieldBlocks:false, ignoreGhost:true });
+              addLog(`${b.id} tenía duplicador: también baja a ${sizeMid}.`, 'warn');
+            } else if (times>1){
+              addLog(`${b.id} tenía duplicador pero ya estaba ≤ ${sizeMid}.`, 'info');
+            }
+            addLog(`${b.id} activó FUCSIA → tamañoMedio ${sizeMid}. Afectadas: ${affected}.`,'warn');
+            if (checkWinConditions()) return;
+          }
+          else if(p.type==='skinTeleport'){
+            // si ya hay un par en curso, consumimos y salimos
+            if(teleportPair){
+              addLog(`${b.id}: piel ignorada (teletransporte en curso).`,'info');
+            }else if(!teleportMarkId){
+              teleportMarkId = b.id; b.teleportMarked = true;
+              addLog(`${b.id}: marcado para teletransporte.`,'info'); updateScoreboard();
+            }else if(teleportMarkId === b.id){
+              addLog(`${b.id}: ya estaba marcado, esperando otra pelota.`, 'info');
+            }else{
+              const first = getBallById(teleportMarkId);
+              if(!first || !first.alive){
+                teleportMarkId = b.id; b.teleportMarked=true;
+                addLog(`${b.id}: marcado (el previo no era válido).`,'info'); updateScoreboard();
+              }else{
+                beginTeleportPair(first.id, b.id, now);
+              }
+            }
+          }
 
           addLog(`${b.id} consumió píldora ${p.name}.`);
           consumed=true; break;
@@ -811,7 +877,16 @@
     const nowGame = gameNowMs();
     for(const b of balls){
       if(!b.alive) continue;
+
+      // parpadeo visual del par en teletransporte
+      let fading = false;
+      if(teleportPair && (b.id===teleportPair.aId || b.id===teleportPair.bId) && !teleportPair.blinkOn){
+        fading = true; ctx.save(); ctx.globalAlpha=0.25;
+      }
+
       ctx.fillStyle=b.color; ctx.beginPath(); ctx.arc(b.pos.x,b.pos.y,b.r,0,Math.PI*2); ctx.fill();
+
+      // aros de estados
       if(b.shield){ ctx.lineWidth=3; ctx.strokeStyle='#33CFFF'; ctx.beginPath(); ctx.arc(b.pos.x,b.pos.y,b.r+2,0,Math.PI*2); ctx.stroke(); }
       if(b.ghostUntil && nowGame < b.ghostUntil){
         ctx.lineWidth=2; ctx.setLineDash([6,4]); ctx.strokeStyle='#ffffffcc';
@@ -821,6 +896,13 @@
         ctx.lineWidth=2; ctx.strokeStyle='#00D1B2';
         ctx.beginPath(); ctx.arc(b.pos.x,b.pos.y,b.r+8,0,Math.PI*2); ctx.stroke();
       }
+      // marcado piel (si no está en parpadeo)
+      if(b.teleportMarked && !(teleportPair && (b.id===teleportPair.aId || b.id===teleportPair.bId))){
+        ctx.lineWidth=3; ctx.strokeStyle='#f4c2a1';
+        ctx.beginPath(); ctx.arc(b.pos.x,b.pos.y,b.r+6,0,Math.PI*2); ctx.stroke();
+      }
+
+      if(fading) ctx.restore();
     }
 
     // Mensajes
@@ -846,7 +928,8 @@
       ['greenSlow',spawnWeights.greenSlow],['cyanShield',spawnWeights.cyanShield],
       ['yellowMorph',spawnWeights.yellowMorph],['whiteGhost',spawnWeights.whiteGhost],
       ['turquoiseEdge',spawnWeights.turquoiseEdge],['pinkDup',spawnWeights.pinkDup],
-      ['grayObstacle',spawnWeights.grayObstacle],['fuchsiaHalf',spawnWeights.fuchsiaHalf]
+      ['grayObstacle',spawnWeights.grayObstacle],['fuchsiaHalf',spawnWeights.fuchsiaHalf],
+      ['skinTeleport',spawnWeights.skinTeleport]
     ].filter(([,w])=>w>0);
 
     if(!entries.length){ scheduleNextSpawn(now,1200); return; }
@@ -888,6 +971,7 @@
       }
       if(morphType) morphUntil+=delta;
       if(obstacle.active) obstacle.until+=delta;
+      if(teleportPair){ teleportPair.swapAt+=delta; teleportPair.nextBlinkAt+=delta; }
       addLog('Reanudar','warn');
     }
   }
@@ -908,7 +992,7 @@
   // inputs
   spawnRateInput.addEventListener('input', ()=>{ clampInputs(); });
   speedMultInput.addEventListener('input', ()=>{ if(state==='idle'){ clampInputs(); } else { speedMultInput.value=speedMult; } });
-  [wBlue,wRed,wGreenFast,wGreenSlow,wCyan,wYellow,wWhite,wTurq,wPink,wGray,wFuchsia,
+  [wBlue,wRed,wGreenFast,wGreenSlow,wCyan,wYellow,wWhite,wTurq,wPink,wGray,wFuchsia,wSkin,
    durGreenFast,durGreenSlow,durWhite,durTurq,durYellow,durGray].forEach(inp=>{
     inp.addEventListener('change', ()=>{ clampInputs(); });
   });
@@ -927,7 +1011,7 @@
   toggleLogBtn.addEventListener('click', toggleLogs);
   closeLogBtn.addEventListener('click', toggleLogs);
 
-  // Hotkeys: P/Espacio pausa, L logs, C config, R reset, Enter iniciar, ESC cierra config
+  // Hotkeys
   window.addEventListener('keydown', (e)=>{
     const tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
     const isTyping = tag === 'INPUT' || tag === 'TEXTAREA';
