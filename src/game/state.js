@@ -14,45 +14,68 @@ export function createInitialState(canvas) {
     R: 0,
     PILL_RADIUS,
 
-    borderColor: '#222',
-    started:false, paused:false,
+    borderColor: "#222",
+    started: false,
+    paused: false,
 
-    baseSpeed:0,
-    defaultSpeed:0,
+    baseSpeed: 0,
+    defaultSpeed: 0,
 
     gameNow: 0,
 
-    balls:[],
-    pills:[],
-    obstacle:{ active:false, until:0, r:0 },
+    balls: [],
+    pills: [],
+    obstacle: { active: false, until: 0, r: 0 },
 
-    morphType:null, morphUntil:0,
-    teleportMarkId:null, teleportPair:null,
+    morphType: null,
+    morphUntil: 0,
+    teleportMarkId: null,
+    teleportPair: null,
 
-    nextSpawnAt:null,
+    nextSpawnAt: null,
 
     // ⚙️ Config
     config: {
-      ballCount:3,
-      maxPills:20,
-      spawnRatePct:250,
+      ballCount: 3,
+      maxPills: 20,
+      spawnRatePct: 250,
       gameSpeed: 1.0,
       spawnImmunitySec: 0.7,
-      initialPillDelaySec: 1.0,   // << NUEVO
-      initialLevel: 5,            // << NUEVO (1–10)
-      durations:{ boost:5, slow:5, ghost:5, edge:5, morph:8, obstacle:8 },
-      weights:{
-        blue:150, red:20, greenFast:15, greenSlow:15, cyanShield:25,
-        yellowMorph:5, whiteGhost:10, turquoiseEdge:10, pinkDup:10,
-        grayObstacle:10, fuchsiaHalf:3, skinTeleport:3
-      }
+      initialPillDelaySec: 1.0, // << NUEVO
+      initialLevel: 5, // << NUEVO (1–10)
+      durations: {
+        boost: 5,
+        slow: 5,
+        ghost: 5,
+        edge: 5,
+        morph: 8,
+        obstacle: 8,
+        steroids: 5,
+      }, // + steroids
+      weights: {
+        blue: 150,
+        red: 20,
+        greenFast: 15,
+        greenSlow: 15,
+        cyanShield: 25,
+        yellowMorph: 5,
+        whiteGhost: 10,
+        turquoiseEdge: 10,
+        pinkDup: 10,
+        grayObstacle: 10,
+        fuchsiaHalf: 3,
+        skinTeleport: 3,
+        navySteroids: 3, // << NUEVA
+      },
     },
 
-    log:(m)=>console.log('[LOG]',m),
-    renderScoreboard:null,
-    setTimeText:null,
-    getBall(id){ return this.balls.find(b=>b.id===id); },
-    checkWin:null,
+    log: (m) => console.log("[LOG]", m),
+    renderScoreboard: null,
+    setTimeText: null,
+    getBall(id) {
+      return this.balls.find((b) => b.id === id);
+    },
+    checkWin: null,
   };
 }
 

@@ -1,4 +1,6 @@
-import { isGhost, tryShrink } from './status.js';
+import { isGhost, tryShrink, steroidsActive } from './status.js';
+import { grow } from '../growth.js';
+
 
 export function collideBalls(gs, now, log){
   const arr = gs.balls;
@@ -11,15 +13,33 @@ export function collideBalls(gs, now, log){
 
       const dx=B.pos.x-A.pos.x, dy=B.pos.y-A.pos.y; const d=Math.hypot(dx,dy), minD=A.r+B.r;
       if(d>0 && d<=minD){
-        const nx=dx/d, ny=dy/d, overlap=(minD-d)+0.5;
-        A.pos.x-=nx*overlap/2; A.pos.y-=ny*overlap/2;
-        B.pos.x+=nx*overlap/2; B.pos.y+=ny*overlap/2;
-        const va=A.vel.x*nx + A.vel.y*ny, vb=B.vel.x*nx + B.vel.y*ny;
-        A.vel.x-=2*va*nx; A.vel.y-=2*va*ny; B.vel.x-=2*vb*nx; B.vel.y-=2*vb*ny;
+        const nx = dx / d,
+          ny = dy / d,
+          overlap = minD - d + 0.5;
+        A.pos.x -= (nx * overlap) / 2;
+        A.pos.y -= (ny * overlap) / 2;
+        B.pos.x += (nx * overlap) / 2;
+        B.pos.y += (ny * overlap) / 2;
+        const va = A.vel.x * nx + A.vel.y * ny,
+          vb = B.vel.x * nx + B.vel.y * ny;
+        A.vel.x -= 2 * va * nx;
+        A.vel.y -= 2 * va * ny;
+        B.vel.x -= 2 * vb * nx;
+        B.vel.y -= 2 * vb * ny;
 
-        tryShrink(A, `colisión con ${B.id}`, now, gs, log);
-        tryShrink(B, `colisión con ${A.id}`, now, gs, log);
-        if(gs.checkWin?.()) return;
+        if (steroidsActive(A, now)) {
+          log?.(`${A.id}: esteroides → CRECE por colisión`);
+          grow(A, log, gs.R);
+        } else {
+          tryShrink(A, `colisión con ${B.id}`, now, gs, log);
+        }
+        if (steroidsActive(B, now)) {
+          log?.(`${B.id}: esteroides → CRECE por colisión`);
+          grow(B, log, gs.R);
+        } else {
+          tryShrink(B, `colisión con ${A.id}`, now, gs, log);
+        }
+        if (gs.checkWin?.()) return;
       }
     }
   }

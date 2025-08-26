@@ -32,11 +32,13 @@ const spawnImmSecVal = document.getElementById('spawnImmSecVal');
     blue: ids('wBlue'), red: ids('wRed'), greenFast: ids('wGreenFast'), greenSlow: ids('wGreenSlow'),
     cyanShield: ids('wCyan'), yellowMorph: ids('wYellow'), whiteGhost: ids('wWhite'),
     turquoiseEdge: ids('wTurq'), pinkDup: ids('wPink'), grayObstacle: ids('wGray'),
-    fuchsiaHalf: ids('wFuchsia'), skinTeleport: ids('wSkin')
+    fuchsiaHalf: ids('wFuchsia'), skinTeleport: ids('wSkin'),
+    navySteroids: ids('wNavy') // NUEVO
   };
   const dur = {
     boost: ids('durGreenFast'), slow: ids('durGreenSlow'), ghost: ids('durWhite'),
-    edge: ids('durTurq'), morph: ids('durYellow'), obstacle: ids('durGray')
+    edge: ids('durTurq'), morph: ids('durYellow'), obstacle: ids('durGray'),
+    steroids: ids('durNavy') // NUEVO
   };
 
   // Cargar config guardada

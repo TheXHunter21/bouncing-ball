@@ -11,6 +11,16 @@ export function setSpeedEffect(ball, type, sec, now, log){
   ball.speedEffect = type; ball.speedEffectUntil = now + sec*1000;
   log?.(`${ball.id}: Velocidad → ${type==='boost'?'2×':'0.5×'} (${sec}s)`);
 }
+export function setSteroids(ball, sec, now, log){
+  ball.steroidsUntil = now + sec*1000;
+  log?.(`${ball.id}: ESTEROIDES activo (${sec}s)`);
+}
+export function steroidsActive(ball, now){
+  if(!ball.steroidsUntil) return false;
+  if(now >= ball.steroidsUntil){ ball.steroidsUntil = 0; return false; }
+  return true;
+}
+
 
 export function effectiveSpeed(base, ball, now){
   if(ball.speedEffect!=='none' && now >= ball.speedEffectUntil){ const prev=ball.speedEffect; ball.speedEffect='none'; }

@@ -1,20 +1,62 @@
-import { PILL_TYPES } from '../pillsRegistry.js';
+// /src/game/systems/spawn.js
 import { randAngle } from '../../constants.js';
+import { PILL_TYPES, pillColor } from '../pillsRegistry.js';
 
+// Programa el próximo spawn
 export function scheduleNextSpawn(gs, now, delayMs){
-  // si se pasa un delay específico, úsalo
   if(typeof delayMs==='number'){ gs.nextSpawnAt = now + delayMs; return; }
 
-  // 0% ⇒ spawns deshabilitados
+  // 0% ⇒ spawns deshabilitados hasta que subas el slider
   if ((gs.config.spawnRatePct|0) <= 0) {
-    gs.nextSpawnAt = Number.POSITIVE_INFINITY; // nunca llega
+    gs.nextSpawnAt = Number.POSITIVE_INFINITY;
     return;
   }
 
-  // factor normal (100% = base, 200% = la mitad, etc.)
+  // 100% = base; 200% = la mitad del tiempo; 525% = ~1/5.25 del tiempo
   const factor = 100 / gs.config.spawnRatePct;
   const base = 1500 + Math.random()*2500;
   gs.nextSpawnAt = now + base*factor;
+}
+
+// Elige tipo por pesos dinámicos (usa PILL_TYPES + config.weights)
+function pickWeightedType(gs){
+  const entries = Object.keys(gs.config.weights || {})
+    .filter(k => (gs.config.weights[k]|0) > 0 && PILL_TYPES[k]); // solo tipos válidos y con peso>0
+  if(entries.length === 0) return null;
+
+  let total = 0;
+  for(const k of entries) total += (gs.config.weights[k]|0);
+  let r = Math.random() * total;
+  for(const k of entries){
+    r -= (gs.config.weights[k]|0);
+    if(r <= 0) return k;
+  }
+  return entries[entries.length-1];
+}
+
+function randomPosInside(gs, triesMax=60){
+  const R = gs.R - 20;
+  for(let i=0; i<triesMax; i++){
+    const a = randAngle();
+    const rr = Math.random()*R;
+    const x = Math.cos(a)*rr;
+    const y = Math.sin(a)*rr;
+    // Evitar spawnear dentro del obstáculo central (si está activo)
+    if(gs.obstacle?.active){
+      const d0 = Math.hypot(x-0, y-0);
+      if(d0 < gs.obstacle.r + 18) continue;
+    }
+    // Evitar solaparse demasiado con pelotas
+    let ok = true;
+    for(const b of gs.balls){
+      if(!b.alive) continue;
+      const d = Math.hypot(b.pos.x-x, b.pos.y-y);
+      if(d < b.r + gs.PILL_RADIUS + 10){ ok = false; break; }
+    }
+    if(ok) return {x,y};
+  }
+  // fallback al centro si no encuentra (el render lo hará obvio)
+  return {x:0,y:0};
 }
 
 export function spawnTick(gs, now, log){
@@ -24,32 +66,28 @@ export function spawnTick(gs, now, log){
   if(gs.nextSpawnAt==null) gs.nextSpawnAt = now + 700;
   if(now < gs.nextSpawnAt) return;
 
-  if(gs.pills.length >= gs.config.maxPills){ scheduleNextSpawn(gs, now, 800); return; }
-
-  const entries = Object.entries(gs.config.weights).filter(([k,w])=>PILL_TYPES[k] && w>0);
-  if(!entries.length){ scheduleNextSpawn(gs, now, 1200); return; }
-
-  const total = entries.reduce((s,[,w])=>s+w,0);
-  let r = Math.random()*total; let pick = entries[0][0];
-  for(const [k,w] of entries){ r -= w; if(r<=0){ pick = k; break; } }
-
-  let finalType = pick, storeOriginal=null;
-  if(gs.morphType){ storeOriginal = pick; finalType = gs.morphType; }
-
-  const R = gs.R, PR=gs.PILL_RADIUS;
-  const maxR = R - PR - 4; let x=0, y=0;
-  for(let tries=0; tries<30; tries++){
-    const a = randAngle(), rr = Math.sqrt(Math.random())*maxR;
-    x = Math.cos(a)*rr; y = Math.sin(a)*rr;
-    if(gs.obstacle.active && Math.hypot(x,y) < gs.obstacle.r + PR + 8) continue;
-    let ok=true; for(const b of gs.balls){ if(!b.alive) continue; if(Math.hypot(x-b.pos.x,y-b.pos.y) <= b.r+PR+12){ ok=false;break; } }
-    if(ok) break;
+  if(gs.pills.length >= gs.config.maxPills){
+    scheduleNextSpawn(gs, now, 800);
+    return;
   }
 
-  const pill = { x, y, type: finalType, name: PILL_TYPES[finalType].label };
-  if(storeOriginal) pill.originalType = storeOriginal;
-  gs.pills.push(pill);
-  log?.(`Spawn píldora ${pill.name} en (${x|0},${y|0})`);
+  const type = pickWeightedType(gs);
+  if(!type){
+    // no hay tipos con peso>0 o no están en el registro
+    scheduleNextSpawn(gs, now, 1200);
+    log?.('Spawn: sin tipos válidos (revisa pesos en CONFIG)');
+    return;
+  }
 
+  const pos = randomPosInside(gs);
+  const pill = {
+    type,
+    name: PILL_TYPES[type]?.label || type,
+    x: pos.x, y: pos.y,
+    color: pillColor(type)
+  };
+  gs.pills.push(pill);
+
+  log?.(`Spawn píldora: ${pill.name} @ (${pill.x.toFixed(0)}, ${pill.y.toFixed(0)})`);
   scheduleNextSpawn(gs, now);
 }
