@@ -4,6 +4,8 @@ import { startFrenzy } from './systems/frenzy.js';
 import { spawnObstacle } from './systems/obstacle.js';
 import { startTeleportOrMark } from './systems/teleport.js';
 
+const isInitialImmune = (ball, now) => now < (ball.noCollideUntil || 0);
+
 export const PILL_TYPES = {
   blue:         { label:'Azul (+nivel)' },
   red:          { label:'Roja (−nivel)' },
@@ -58,15 +60,23 @@ export function onConsumePill(p, ball, gs, now, log){
     gs.renderScoreboard?.(); return;
   }
   if(p.type==='red'){
-    for(let i=0;i<times;i++) tryShrink(ball,'Píldora roja',now,gs,log);
-    gs.renderScoreboard?.(); return;
+  if(isInitialImmune(ball, now)){
+    log?.(`${ball.id}: invulnerable → Roja sin efecto`);
+    return; // se consume la píldora, pero no aplica efecto
   }
+  for(let i=0;i<times;i++) tryShrink(ball,'Píldora roja',now,gs,log);
+  gs.renderScoreboard?.(); return;
+}
   if(p.type==='greenFast'){
     setSpeedEffect(ball,'boost', getDur('boost')*times, now, log); return;
   }
   if(p.type==='greenSlow'){
-    setSpeedEffect(ball,'slow', getDur('slow')*times, now, log); return;
+  if(isInitialImmune(ball, now)){
+    log?.(`${ball.id}: invulnerable → Verde oscuro (0.5×) sin efecto`);
+    return;
   }
+  setSpeedEffect(ball,'slow', getDur('slow')*times, now, log); return;
+}
   if(p.type==='cyanShield'){
     if(ball.shield){ log?.(`${ball.id}: ya tenía escudo (no acumulable).`); if(times>1) log?.(`${ball.id}: duplicador no acumula escudos.`); }
     else giveShield(ball, log);
@@ -76,8 +86,12 @@ export function onConsumePill(p, ball, gs, now, log){
     setGhost(ball, getDur('ghost')*times, now, log); gs.renderScoreboard?.(); return;
   }
   if(p.type==='turquoiseEdge'){
-    enableEdgeGrowth(ball, getDur('edge')*times, now, log); gs.renderScoreboard?.(); return;
+  if(isInitialImmune(ball, now)){
+    log?.(`${ball.id}: invulnerable → Turquesa (bordes +) sin efecto`);
+    return;
   }
+  enableEdgeGrowth(ball, getDur('edge')*times, now, log); gs.renderScoreboard?.(); return;
+}
   if(p.type==='yellowMorph'){
     startFrenzy(gs, getDur('morph')*times, now, log); return;
   }
@@ -88,55 +102,47 @@ export function onConsumePill(p, ball, gs, now, log){
     spawnObstacle(gs, getDur('obstacle')*times, now, log); return;
   }
 if(p.type==='fuchsiaHalf'){
-  const sizeMid = Math.floor(ball.level / 2);
-  let affected = 0;
+  const sizeMid = Math.floor(ball.level/2);
+  let affected=0, skipped=0;
+  const FLASH_MS = 250;
 
-  // bajar a tamañoMedio (respetando escudos; fantasma no evita este efecto)
-  for (const other of gs.balls) {
-    if (!other.alive || other === ball) continue;
-    if (other.level > sizeMid) {
-      if (other.shield) {
-        other.shield = false;
-        log?.(`${other.id}: ESCUDO bloqueó fucsia (objetivo ${sizeMid})`);
-      } else {
-        forceDownTo(other, sizeMid, now, log, {
-          breakShieldBlocks: true,
-          ignoreGhost: true,
-        });
+  // afectar a OTROS que NO estén invulnerables (escudo sigue bloqueando como antes)
+  for(const other of gs.balls){
+    if(!other.alive || other===ball) continue;
+
+    // flash para todos los demás (avisar el evento)
+    other._flashColor = pillColor('fuchsiaHalf');
+    other._flashUntil = now + FLASH_MS;
+
+    if(isInitialImmune(other, now)){
+      skipped++;
+      continue; // invulnerable: no sufre la reducción de nivel
+    }
+
+    if(other.level > sizeMid){
+      if(other.shield){ other.shield=false; log?.(`${other.id}: ESCUDO bloqueó fucsia (objetivo ${sizeMid})`); }
+      else {
+        forceDownTo(other, sizeMid, now, log, { breakShieldBlocks:true, ignoreGhost:true });
         affected++;
       }
     }
   }
 
-  // si tenía duplicador, también baja el propio
-  if (times > 1 && ball.level > sizeMid) {
-    if (ball.shield) {
-      ball.shield = false;
-      log?.(`${ball.id}: ESCUDO roto por fucsia (propio)`);
-    }
-    forceDownTo(ball, sizeMid, now, log, {
-      breakShieldBlocks: false,
-      ignoreGhost: true,
-    });
+  // si el que la comió tenía duplicador, SOLO baja su propio nivel si NO está invulnerable
+  const eaterImmune = isInitialImmune(ball, now);
+  if(times>1 && ball.level > sizeMid && !eaterImmune){
+    if(ball.shield){ ball.shield=false; log?.(`${ball.id}: ESCUDO roto por fucsia (propio)`); }
+    forceDownTo(ball, sizeMid, now, log, { breakShieldBlocks:false, ignoreGhost:true });
     log?.(`${ball.id} tenía duplicador: también baja a ${sizeMid}.`);
-  } else if (times > 1) {
-    log?.(`${ball.id} tenía duplicador pero ya estaba ≤ ${sizeMid}.`);
+  } else if(times>1 && eaterImmune){
+    log?.(`${ball.id} tenía duplicador pero está invulnerable: no baja su propio nivel.`);
   }
 
-  // 🔔 Flash visual: todas las DEMÁS pelotas parpadean fucsia una vez
-  const FLASH_MS = 250;
-  for (const other of gs.balls) {
-    if (!other.alive || other === ball) continue;
-    other._flashColor = pillColor("fuchsiaHalf"); // #a4195b
-    other._flashUntil = now + FLASH_MS;
-  }
-
-  log?.(
-    `${ball.id} activó FUCSIA → tamañoMedio ${sizeMid}. Afectadas: ${affected}.`
-  );
-  if (gs.checkWin?.()) return;
+  log?.(`${ball.id} activó FUCSIA → tamañoMedio ${sizeMid}. Afectadas: ${affected}. Saltadas por invulnerabilidad: ${skipped}.`);
+  if(gs.checkWin?.()) return;
   return;
 }
+
 
   if(p.type==='skinTeleport'){
     startTeleportOrMark(ball, gs, now, log); return;
