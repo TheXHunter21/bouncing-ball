@@ -71,7 +71,10 @@ spawnImmSecVal.textContent = `${Number(state.config.spawnImmunitySec).toFixed(1)
     const c = state.config;
     c.ballCount = Math.max(1, Math.min(50, Math.floor(+ballCount.value||3)));
     c.maxPills  = Math.max(0, Math.floor(+maxPills.value||20));
-    c.spawnRatePct = Math.max(25, Math.min(300, Math.floor(+spawnRate.value||250)));
+   // antes: max 300
+c.spawnRatePct = Math.max(0, Math.min(525, Math.floor(+spawnRate.value || 0)));
+spawnRateVal.textContent = `${c.spawnRatePct}%`;
+
 
     c.initialPillDelaySec = Math.max(0, Math.min(20, +pillStartDelay.value || 0));
     pillStartDelayVal.textContent = `${c.initialPillDelaySec.toFixed(1)}s`;

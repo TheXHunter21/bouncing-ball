@@ -2,13 +2,25 @@ import { PILL_TYPES } from '../pillsRegistry.js';
 import { randAngle } from '../../constants.js';
 
 export function scheduleNextSpawn(gs, now, delayMs){
+  // si se pasa un delay específico, úsalo
   if(typeof delayMs==='number'){ gs.nextSpawnAt = now + delayMs; return; }
-  const factor = 100 / gs.config.spawnRatePct; // 200% → la mitad
+
+  // 0% ⇒ spawns deshabilitados
+  if ((gs.config.spawnRatePct|0) <= 0) {
+    gs.nextSpawnAt = Number.POSITIVE_INFINITY; // nunca llega
+    return;
+  }
+
+  // factor normal (100% = base, 200% = la mitad, etc.)
+  const factor = 100 / gs.config.spawnRatePct;
   const base = 1500 + Math.random()*2500;
   gs.nextSpawnAt = now + base*factor;
 }
 
 export function spawnTick(gs, now, log){
+  // 0% ⇒ no spawnear nada
+  if ((gs.config.spawnRatePct|0) <= 0) return;
+
   if(gs.nextSpawnAt==null) gs.nextSpawnAt = now + 700;
   if(now < gs.nextSpawnAt) return;
 
